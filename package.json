@@ -1,0 +1,11 @@
+{
+  "name": "mrim-web-client",
+  "private": true,
+  "version": "1.0.0",
+  "description": "MRIM Web Client in pure PHP 8 and ES6 JavaScript",
+  "scripts": {
+    "dev": "php server/websocket-server.php",
+    "start": "php server/websocket-server.php",
+    "build": "mkdir -p dist && cp -r public/* dist/ 2>/dev/null || true"
+  }
+}
