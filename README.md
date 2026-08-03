@@ -1,7 +1,6 @@
 # MRIM WebSocket Gateway
 
-![Uploading image.png…]()
-
+<img width="875" height="699" alt="screen" src="https://github.com/user-attachments/assets/cd98391c-cdeb-4a36-bfbd-24489abae2c8" />
 
 Open-source проект для работы с протоколом **MRIM (Mail.Ru Instant Messenger)** через современный WebSocket-интерфейс.
 
