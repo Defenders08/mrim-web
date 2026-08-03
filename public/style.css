@@ -577,3 +577,15 @@ body {
 .hidden {
     display: none !important;
 }
+
+.mrim-smile {
+    width: 18px;
+    height: 18px;
+    display: inline;
+    vertical-align: -4px;
+    margin: 0 2px;
+}
+.chat-message {
+    line-height: 22px;
+}
+
