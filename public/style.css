@@ -154,8 +154,29 @@ body {
 .contact-left {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     overflow: hidden;
+    flex: 1;
+    min-width: 0;
+}
+
+.contact-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: 6px;
+}
+
+.chat-avatar {
+    width: 35px;
+    height: 35px;
+    min-width: 35px;
+    border-radius: 0;
+    background-color: #e0e0e0;
+    object-fit: cover;
+    border: 1px solid #c0c8d0;
+    flex-shrink: 0;
 }
 
 .contact-status-dot {

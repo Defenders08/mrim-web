@@ -107,19 +107,30 @@ function handleServerEvent(type, data) {
     switch (type) {
         case 'init_state':
             state.mrimState = data.mrim_state || 'disconnected';
-            if (data.my_email) {
+            if (data.mrim_state === 'authenticated' && data.my_email) {
                 state.myEmail = data.my_email.toLowerCase().trim();
                 el.authStatusBar.textContent = `В сети как: ${state.myEmail}`;
                 el.authStatusBar.style.color = '#006600';
-            }
-            if (data.contacts && Array.isArray(data.contacts)) {
-                data.contacts.forEach(c => {
-                    if (c && c.email) {
-                        const emailKey = c.email.toLowerCase().trim();
-                        state.contacts[emailKey] = { ...c, email: emailKey };
-                    }
-                });
+                if (data.contacts && Array.isArray(data.contacts)) {
+                    state.contacts = {};
+                    data.contacts.forEach(c => {
+                        if (c && c.email) {
+                            const emailKey = c.email.toLowerCase().trim();
+                            state.contacts[emailKey] = { ...c, email: emailKey };
+                        }
+                    });
+                    renderContacts();
+                }
+            } else {
+                // Wipe local state completely on new or unauthenticated connection
+                state.myEmail = '';
+                state.contacts = {};
+                state.messages = {};
+                state.activeContact = null;
                 renderContacts();
+                renderChatHistory();
+                el.authStatusBar.textContent = 'Статус: Не в сети. Введите логин и пароль для входа.';
+                el.authStatusBar.style.color = '#333333';
             }
             updateAuthUI();
             break;
@@ -133,17 +144,27 @@ function handleServerEvent(type, data) {
             break;
 
         case 'login_success':
+            const newEmail = (data.email || '').toLowerCase().trim();
+            if (state.myEmail !== newEmail) {
+                state.contacts = {};
+                state.messages = {};
+                state.activeContact = null;
+            }
             state.mrimState = 'authenticated';
-            state.myEmail = (data.email || '').toLowerCase().trim();
+            state.myEmail = newEmail;
             el.authStatusBar.textContent = `В сети как: ${state.myEmail}`;
             el.authStatusBar.style.color = '#006600';
+            renderContacts();
+            renderChatHistory();
             updateAuthUI();
             logToConsole(`Успешная авторизация на сервере mrim.su как ${state.myEmail}!`, 'info');
             break;
 
         case 'login_error':
             state.mrimState = 'disconnected';
+            state.myEmail = '';
             state.contacts = {};
+            state.messages = {};
             state.activeContact = null;
             renderContacts();
             renderChatHistory();
@@ -156,7 +177,9 @@ function handleServerEvent(type, data) {
         case 'logout':
         case 'disconnected':
             state.mrimState = 'disconnected';
+            state.myEmail = '';
             state.contacts = {};
+            state.messages = {};
             state.activeContact = null;
             renderContacts();
             renderChatHistory();
@@ -367,6 +390,21 @@ function updateAuthUI() {
 }
 
 /**
+ * Helper to construct avatar URL according to MRIM rules
+ * http://obraz.mrim.su/{domain}/{username}/_mrimavatar
+ */
+function getAvatarUrl(email) {
+    if (!email || typeof email !== 'string') return '';
+    const cleanEmail = email.trim().toLowerCase();
+    const parts = cleanEmail.split('@');
+    if (parts.length < 2) return '';
+    const username = parts[0];
+    const domain = parts[1];
+    if (!username || !domain) return '';
+    return `http://obraz.mrim.su/${domain}/${username}/_mrimavatar`;
+}
+
+/**
  * Render Contacts list in left panel
  */
 function renderContacts() {
@@ -388,18 +426,29 @@ function renderContacts() {
         const left = document.createElement('div');
         left.className = 'contact-left';
 
-        const dot = document.createElement('span');
-        dot.className = 'contact-status-dot ' + getStatusClass(c.status);
-        dot.title = c.status_title || 'Статус: ' + c.status;
+        const avatarImg = document.createElement('img');
+        avatarImg.className = 'chat-avatar';
+        avatarImg.alt = '';
+        const avatarUrl = getAvatarUrl(email);
+        if (avatarUrl) {
+            avatarImg.src = avatarUrl;
+            avatarImg.onerror = function() {
+                this.onerror = null;
+                this.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+            };
+        }
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'contact-name';
         nameSpan.textContent = c.nickname || email;
         nameSpan.title = email;
 
-        left.appendChild(dot);
+        left.appendChild(avatarImg);
         left.appendChild(nameSpan);
         item.appendChild(left);
+
+        const right = document.createElement('div');
+        right.className = 'contact-right';
 
         if (c.hasAuthReq) {
             const authBadge = document.createElement('span');
@@ -407,15 +456,22 @@ function renderContacts() {
             authBadge.style.backgroundColor = '#d29922';
             authBadge.textContent = '🔑';
             authBadge.title = 'Пользователь просит авторизацию';
-            item.appendChild(authBadge);
+            right.appendChild(authBadge);
         }
 
         if (c.unread && c.unread > 0) {
             const badge = document.createElement('span');
             badge.className = 'unread-badge';
             badge.textContent = c.unread;
-            item.appendChild(badge);
+            right.appendChild(badge);
         }
+
+        const dot = document.createElement('span');
+        dot.className = 'contact-status-dot ' + getStatusClass(c.status);
+        dot.title = c.status_title || 'Статус: ' + c.status;
+        right.appendChild(dot);
+
+        item.appendChild(right);
 
         el.contactsList.appendChild(item);
     });

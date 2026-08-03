@@ -1,13 +1,115 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+    <title>Mail.Ru Агент (MRIM Web Client)</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
 
+<div class="agent-window">
+    <!-- Top Bar: Title & Server Status -->
+    <div class="title-bar">
+        <span class="title-text">Mail.Ru Агент — MRIM Web Client (mrim.su)</span>
+        <span class="server-status" id="ws-status-text">• WebSocket: Подключение...</span>
+    </div>
+
+    <!-- Login Section -->
+    <div class="panel login-panel" id="login-panel">
+        <form id="login-form">
+            <table class="form-table">
+                <tr>
+                    <td><label for="login-email">Логин (E-mail):</label></td>
+                    <td><input type="text" id="login-email" placeholder="user@mrim.su или user@mail.ru" required></td>
+                    <td><label for="login-status">Статус:</label></td>
+                    <td>
+                        <select id="login-status">
+                            <option value="1">В сети (Online)</option>
+                            <option value="2">Отошел (Away)</option>
+                            <option value="2147483648">Невидимый (Invisible)</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label for="login-pass">Пароль:</label></td>
+                    <td><input type="password" id="login-pass" required></td>
+                    <td colspan="2">
+                        <button type="submit" class="btn btn-login" id="btn-login">Войти в Агент</button>
+                        <button type="button" class="btn btn-logout hidden" id="btn-logout">Выйти</button>
+                        <button type="button" class="btn btn-reconnect" id="btn-reconnect" title="Переподключиться к серверу">Reconnect</button>
+                        <button type="button" class="btn btn-ping" id="btn-ping" title="Отправить Ping на сервер">Ping</button>
+                    </td>
+                </tr>
+            </table>
+        </form>
+        <div class="auth-status-bar" id="auth-status-bar">
+            Статус: Не в сети. Введите логин и пароль для входа.
+        </div>
+    </div>
+
+    <!-- Main Workspace: Contacts & Chat -->
+    <div class="workspace">
+        <!-- Left Column: Contact List -->
+        <div class="contacts-panel panel">
+            <div class="panel-header">
+                <b>Контакты</b>
+                <span id="contacts-count">(0)</span>
+            </div>
+            <div class="contacts-list" id="contacts-list">
+                <div class="empty-list">Нет контактов (войдите в сеть)</div>
+            </div>
+            <!-- Quick Add Contact / Custom Message To -->
+            <div class="direct-msg-box">
+                <label for="direct-to">Написать / Добавить контакт:</label>
+                <div class="direct-input-row">
+                    <input type="text" id="direct-to" placeholder="friend@mrim.su">
+                    <button type="button" class="btn" id="btn-select-contact" title="Чат">&gt;&gt;</button>
+                    <button type="button" class="btn btn-auth" id="btn-add-contact" title="Добавить контакт в список и авторизовать">+</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Chat Box -->
+        <div class="chat-panel panel">
+            <div class="panel-header chat-header-row">
+                <div>
+                    <b>Чат:</b> <span id="current-chat-title">Выберите контакт из списка</span>
+                    <span id="typing-indicator" class="typing-status hidden">✍️ печатает...</span>
+                </div>
+                <div id="chat-header-actions" class="hidden">
+                    <button type="button" class="btn btn-small btn-auth" id="btn-authorize-active" title="Отправить пакет авторизации (MRIM_CS_AUTHORIZE) этому контакту">
+                        🔓 Авторизовать контакт
+                    </button>
+                </div>
+            </div>
+            <div class="chat-history" id="chat-history">
+                <div class="chat-welcome">
+                    <p>Добро пожаловать в веб-клиент Mail.Ru Агент (MRIM)!</p>
+                    <p>• Поддержка бинарного протокола MRIM (1.20) с сервером <b>mrim.su</b></p>
+                    <p>• Постоянное соединение, Ping/Pong, Reconnect</p>
+                    <p>• Выберите контакт слева или введите email снизу, чтобы начать диалог.</p>
+                </div>
+            </div>
+            <form id="send-form" class="send-box">
+                <textarea id="message-input" rows="3" placeholder="Введите сообщение..." disabled></textarea>
+                <div class="send-buttons">
+                    <button type="submit" class="btn btn-send" id="btn-send" disabled>Отправить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bottom Section: Logs -->
+    <div class="panel logs-panel">
+        <div class="panel-header">
+            <b>Лог системных сообщений и ошибок</b>
+            <button type="button" class="btn btn-small" id="btn-clear-logs">Очистить лог</button>
+        </div>
+        <div class="logs-console" id="logs-console"></div>
+    </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

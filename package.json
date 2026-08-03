@@ -4,8 +4,11 @@
   "version": "1.0.0",
   "description": "MRIM Web Client in pure PHP 8 and ES6 JavaScript",
   "scripts": {
-    "dev": "php server/websocket-server.php",
-    "start": "php server/websocket-server.php",
-    "build": "mkdir -p dist && cp -r public/* dist/ 2>/dev/null || true"
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "start": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "vite": "^8.2.0"
   }
 }

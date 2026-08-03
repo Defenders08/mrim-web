@@ -406,6 +406,11 @@ class MRIMWebServer
                     return;
                 }
 
+                // Ensure any previous session on this connection is cleanly closed first
+                if ($mrimClient->getState() !== 'disconnected') {
+                    $mrimClient->disconnect();
+                }
+
                 echo "[DEBUG] Login command received [WS ID: $clientId, Session UUID: $wsUuid, Login: $email, MRIMClient Hash: $mrimHash]\n";
                 $this->sendJsonToClient($clientId, ['type' => 'status_log', 'data' => ['message' => "Connecting to MRIM as $email..."]]);
                 $mrimClient->connect($email, $password, $status);
