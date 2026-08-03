@@ -1,8 +1,0 @@
-{
-  "name": "MRIM Web Client",
-  "description": "Mail.Ru Instant Messenger (MRIM) Web Client in pure PHP and JavaScript connecting to mrim.su",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
