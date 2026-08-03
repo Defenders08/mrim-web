@@ -13,9 +13,9 @@ return [
     'mrim_dispatcher_port' => 2042,
 
     // Web / WebSocket server configuration
-    // Uses PORT env var (port 3000 in AI Studio)
+    // Port 3000 is required by AI Studio environment
     'server_host' => '0.0.0.0',
-    'server_port' => (int) (getenv('PORT') ?: 3000),
+    'server_port' => 3000,
 
     // MRIM client identification string sent during CS_LOGIN2
     'mrim_client_name' => 'client="mrim-web-client 1.0"',
