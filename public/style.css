@@ -58,9 +58,201 @@ body {
     align-items: center;
 }
 
-/* Login Panel */
+/* Login Panel & Expandable Behavior */
 .login-panel {
     background-color: #e8ecef;
+    padding: 6px 10px;
+    transition: background-color 0.3s ease;
+}
+
+.login-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 28px;
+}
+
+.login-header-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #2b3a4a;
+    min-width: 0;
+    flex: 1;
+}
+
+.user-avatar-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: #dce4eb;
+    border: 1px solid #8a9aa8;
+    border-radius: 0;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.user-avatar-img-wrap {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.user-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.user-avatar-img.hidden,
+.user-avatar-svg.hidden {
+    display: none !important;
+}
+
+.user-avatar-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.user-status-indicator {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 0;
+    border: 1px solid #ffffff;
+    box-shadow: 0 0 2px rgba(0,0,0,0.3);
+}
+
+.user-status-indicator.status-online {
+    background-color: #00cc00;
+}
+
+.user-status-indicator.status-away {
+    background-color: #ffaa00;
+}
+
+.user-status-indicator.status-offline {
+    background-color: #aaaaaa;
+}
+
+.user-email-preview {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+    color: #2b3a4a;
+    transition: color 0.2s ease;
+}
+
+.user-email-preview.authenticated {
+    color: #006600;
+}
+
+.login-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.panel-buttons-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-toggle {
+    padding: 3px 8px;
+    background-color: #d0d8e0;
+    border: 1px solid #6a7a8a;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 25px;
+    transition: background-color 0.2s;
+}
+
+.btn-toggle:hover {
+    background-color: #bcd0e0;
+}
+
+.toggle-chevron {
+    display: inline-block;
+    font-size: 10px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    color: #334455;
+}
+
+/* Expandable Content Container */
+.login-expandable-content {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    margin-top: 0;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.25s ease,
+                margin-top 0.3s ease;
+}
+
+.login-panel.expanded .login-expandable-content {
+    max-height: 220px;
+    opacity: 1;
+    margin-top: 8px;
+}
+
+.login-panel.expanded .toggle-chevron {
+    transform: rotate(180deg);
+}
+
+/* Form Grid Inside Expandable Panel */
+.form-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 8px 10px;
+    background-color: #f2f5f8;
+    border: 1px solid #c0c8d0;
+}
+
+.form-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 200px;
+    min-width: 180px;
+}
+
+.form-field label {
+    font-size: 12px;
+    font-weight: bold;
+    color: #334455;
+    white-space: nowrap;
+}
+
+.form-field input[type="text"],
+.form-field input[type="password"],
+.form-field select {
+    flex: 1;
+    width: 100%;
+    padding: 3px 6px;
+    border: 1px solid #7a8a9a;
+    background-color: #ffffff;
+    font-family: Tahoma, Verdana, sans-serif;
+    font-size: 12px;
 }
 
 .form-table {
@@ -180,15 +372,18 @@ body {
 }
 
 .contact-status-dot {
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
     display: inline-block;
-    border: 1px solid #555555;
+    border: 1px solid #445566;
+    border-radius: 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+    flex-shrink: 0;
 }
 
 .status-online { background-color: #00cc00; }
 .status-away { background-color: #ffaa00; }
-.status-offline { background-color: #cccccc; }
+.status-offline { background-color: #aaaaaa; }
 
 .contact-name {
     white-space: nowrap;
@@ -346,7 +541,7 @@ body {
 .msg-auth-card {
     background-color: #e6f4ea;
     border: 1px solid #34a853;
-    border-radius: 6px;
+    border-radius: 0;
     padding: 8px 12px;
     margin-top: 6px;
     margin-bottom: 6px;

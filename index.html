@@ -16,36 +16,61 @@
     </div>
 
     <!-- Login Section -->
-    <div class="panel login-panel" id="login-panel">
+    <div class="panel login-panel collapsed" id="login-panel">
         <form id="login-form">
-            <table class="form-table">
-                <tr>
-                    <td><label for="login-email">Логин (E-mail):</label></td>
-                    <td><input type="text" id="login-email" placeholder="user@mrim.su или user@mail.ru" required></td>
-                    <td><label for="login-status">Статус:</label></td>
-                    <td>
+            <!-- Compact Header Bar (Always Visible) -->
+            <div class="login-header-bar">
+                <div class="login-header-info">
+                    <div class="user-avatar-badge">
+                        <div class="user-avatar-img-wrap">
+                            <img id="user-avatar-img" class="user-avatar-img hidden" alt="Avatar" />
+                            <svg class="user-avatar-svg" id="user-avatar-default" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z" fill="#4B6375"/>
+                                <path d="M12 14C7.58172 14 4 17.5817 4 22H20C20 17.5817 16.4183 14 12 14Z" fill="#4B6375"/>
+                            </svg>
+                        </div>
+                        <span class="user-status-indicator status-offline" id="user-status-indicator" title="Статус подключения"></span>
+                    </div>
+                    <span class="user-email-preview" id="user-email-preview">Не авторизован</span>
+                </div>
+                <div class="login-header-actions">
+                    <div class="panel-buttons-group">
+                        <button type="submit" class="btn btn-login" id="btn-login">Войти в Агент</button>
+                        <button type="button" class="btn btn-logout hidden" id="btn-logout">Выйти</button>
+                        <button type="button" class="btn btn-reconnect" id="btn-reconnect" title="Переподключиться к серверу">Reconnect</button>
+                        <button type="button" class="btn btn-ping" id="btn-ping" title="Отправить Ping на сервер">Ping</button>
+                    </div>
+                    <button type="button" class="btn btn-toggle" id="btn-toggle-login" title="Развернуть панель" aria-expanded="false" aria-label="Развернуть/Свернуть панель">
+                        <span class="toggle-chevron">▼</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Expandable Detailed Form Content -->
+            <div class="login-expandable-content" id="login-expandable-content">
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="login-email">Логин (E-mail):</label>
+                        <input type="text" id="login-email" placeholder="user@mrim.su или user@mail.ru" required>
+                    </div>
+                    <div class="form-field">
+                        <label for="login-pass">Пароль:</label>
+                        <input type="password" id="login-pass" required>
+                    </div>
+                    <div class="form-field">
+                        <label for="login-status">Статус:</label>
                         <select id="login-status">
                             <option value="1">В сети (Online)</option>
                             <option value="2">Отошел (Away)</option>
                             <option value="2147483648">Невидимый (Invisible)</option>
                         </select>
-                    </td>
-                </tr>
-                <tr>
-                    <td><label for="login-pass">Пароль:</label></td>
-                    <td><input type="password" id="login-pass" required></td>
-                    <td colspan="2">
-                        <button type="submit" class="btn btn-login" id="btn-login">Войти в Агент</button>
-                        <button type="button" class="btn btn-logout hidden" id="btn-logout">Выйти</button>
-                        <button type="button" class="btn btn-reconnect" id="btn-reconnect" title="Переподключиться к серверу">Reconnect</button>
-                        <button type="button" class="btn btn-ping" id="btn-ping" title="Отправить Ping на сервер">Ping</button>
-                    </td>
-                </tr>
-            </table>
+                    </div>
+                </div>
+                <div class="auth-status-bar" id="auth-status-bar">
+                    Статус: Не в сети. Введите логин и пароль для входа.
+                </div>
+            </div>
         </form>
-        <div class="auth-status-bar" id="auth-status-bar">
-            Статус: Не в сети. Введите логин и пароль для входа.
-        </div>
     </div>
 
     <!-- Main Workspace: Contacts & Chat -->

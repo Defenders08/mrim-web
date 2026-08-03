@@ -264,6 +264,7 @@ function handleServerEvent(type, data) {
         case 'authorize_request':
             if (data && data.from) {
                 const reqFrom = data.from.toLowerCase().trim();
+                const now = Date.now();
                 logToConsole(`Запрос авторизации от ${reqFrom}: ${data.text || ''}`, 'warning');
                 if (!state.contacts[reqFrom]) {
                     state.contacts[reqFrom] = {
@@ -271,10 +272,12 @@ function handleServerEvent(type, data) {
                         nickname: data.nick || reqFrom,
                         status: 1,
                         unread: 1,
-                        hasAuthReq: true
+                        hasAuthReq: true,
+                        lastActivity: now
                     };
                 } else {
                     state.contacts[reqFrom].hasAuthReq = true;
+                    state.contacts[reqFrom].lastActivity = now;
                 }
                 renderContacts();
             }
@@ -302,11 +305,30 @@ function showTypingIndicator() {
 }
 
 /**
+ * Helper to get contact's last activity timestamp
+ */
+function getLastActivity(email) {
+    const c = state.contacts[email];
+    if (c && c.lastActivity) {
+        return c.lastActivity;
+    }
+    const msgs = state.messages[email];
+    if (msgs && msgs.length > 0) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.timestamp) {
+            return lastMsg.timestamp > 1e11 ? lastMsg.timestamp : lastMsg.timestamp * 1000;
+        }
+    }
+    return 0;
+}
+
+/**
  * Handle incoming message from a contact
  */
 function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, senderNick = '') {
     if (!rawFrom) return;
     const fromEmail = rawFrom.toLowerCase().trim();
+    const now = timestamp ? (timestamp > 1e11 ? timestamp : timestamp * 1000) : Date.now();
 
     if (fromEmail.includes('admin@mrim.su')) {
         console.log("TEST MESSAGE FROM ADMIN RECEIVED");
@@ -332,9 +354,11 @@ function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, send
             nickname: senderNick || fromEmail,
             status: 1,
             unread: 0,
-            hasAuthReq: isAuthReq
+            hasAuthReq: isAuthReq,
+            lastActivity: now
         };
     } else {
+        state.contacts[fromEmail].lastActivity = now;
         if (isAuthReq) {
             state.contacts[fromEmail].hasAuthReq = true;
         }
@@ -347,8 +371,8 @@ function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, send
         renderChatHistory();
     } else {
         state.contacts[fromEmail].unread = (state.contacts[fromEmail].unread || 0) + 1;
-        renderContacts();
     }
+    renderContacts();
 }
 
 /**
@@ -357,6 +381,7 @@ function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, send
 function handleOutgoingMessage(rawTo, text, timestamp) {
     if (!rawTo) return;
     const toEmail = rawTo.toLowerCase().trim();
+    const now = timestamp ? (timestamp > 1e11 ? timestamp : timestamp * 1000) : Date.now();
 
     if (!state.messages[toEmail]) {
         state.messages[toEmail] = [];
@@ -369,9 +394,22 @@ function handleOutgoingMessage(rawTo, text, timestamp) {
         isMe: true
     });
 
+    if (!state.contacts[toEmail]) {
+        state.contacts[toEmail] = {
+            email: toEmail,
+            nickname: toEmail,
+            status: 1,
+            unread: 0,
+            lastActivity: now
+        };
+    } else {
+        state.contacts[toEmail].lastActivity = now;
+    }
+
     if (state.activeContact === toEmail) {
         renderChatHistory();
     }
+    renderContacts();
 }
 
 /**
@@ -401,7 +439,8 @@ function getAvatarUrl(email) {
     const username = parts[0];
     const domain = parts[1];
     if (!username || !domain) return '';
-    return `http://obraz.mrim.su/${domain}/${username}/_mrimavatar`;
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//obraz.mrim.su/${domain}/${username}/_mrimavatar`;
 }
 
 /**
@@ -417,7 +456,23 @@ function renderContacts() {
     }
 
     el.contactsList.innerHTML = '';
-    keys.sort().forEach(email => {
+    const defaultAvatarSvg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%238a9aa8"><path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z"/><path d="M12 14C7.58172 14 4 17.5817 4 22H20C20 17.5817 16.4183 14 12 14Z"/></svg>';
+
+    keys.sort((a, b) => {
+        const actA = getLastActivity(a);
+        const actB = getLastActivity(b);
+        if (actA !== actB) {
+            return actB - actA;
+        }
+        const unreadA = state.contacts[a]?.unread || 0;
+        const unreadB = state.contacts[b]?.unread || 0;
+        if (unreadA !== unreadB) {
+            return unreadB - unreadA;
+        }
+        const nameA = (state.contacts[a]?.nickname || a).toLowerCase();
+        const nameB = (state.contacts[b]?.nickname || b).toLowerCase();
+        return nameA.localeCompare(nameB);
+    }).forEach(email => {
         const c = state.contacts[email];
         const item = document.createElement('div');
         item.className = 'contact-item' + (state.activeContact === email ? ' active' : '');
@@ -433,9 +488,15 @@ function renderContacts() {
         if (avatarUrl) {
             avatarImg.src = avatarUrl;
             avatarImg.onerror = function() {
-                this.onerror = null;
-                this.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                if (this.src.startsWith('https:')) {
+                    this.src = avatarUrl.replace('https:', 'http:');
+                } else {
+                    this.onerror = null;
+                    this.src = defaultAvatarSvg;
+                }
             };
+        } else {
+            avatarImg.src = defaultAvatarSvg;
         }
 
         const nameSpan = document.createElement('span');
@@ -699,4 +760,147 @@ el.btnClearLogs.addEventListener('click', () => {
 // Start WebSocket connection when DOM is ready
 window.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
+    initLoginPanelToggle();
 });
+
+// ==========================================
+// Compact / Expandable Login Panel Controls
+// ==========================================
+function initLoginPanelToggle() {
+    const loginPanel = document.getElementById('login-panel');
+    const toggleBtn = document.getElementById('btn-toggle-login');
+    const emailInput = document.getElementById('login-email');
+    const authStatus = document.getElementById('auth-status-bar');
+    const emailPreview = document.getElementById('user-email-preview');
+    const statusIndicator = document.getElementById('user-status-indicator');
+    const btnLogin = document.getElementById('btn-login');
+
+    if (!loginPanel || !toggleBtn) return;
+
+    function updateAvatar(emailStr) {
+        const avatarImg = document.getElementById('user-avatar-img');
+        const defaultSvg = document.getElementById('user-avatar-default');
+        if (!avatarImg || !defaultSvg) return;
+
+        if (emailStr && emailStr.includes('@')) {
+            const parts = emailStr.trim().split('@');
+            if (parts.length === 2 && parts[0] && parts[1]) {
+                const username = parts[0].trim();
+                const domain = parts[1].trim();
+                // Use https if page is HTTPS to avoid Mixed Content blocking by browsers
+                const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+                const avatarUrl = `${protocol}//obraz.mrim.su/${domain}/${username}/_mrimavatar`;
+
+                if (avatarImg.dataset.currentSrc !== avatarUrl) {
+                    avatarImg.dataset.currentSrc = avatarUrl;
+                    
+                    avatarImg.onload = () => {
+                        avatarImg.classList.remove('hidden');
+                        defaultSvg.classList.add('hidden');
+                    };
+                    
+                    avatarImg.onerror = () => {
+                        // If HTTPS failed due to SSL, attempt HTTP fallback
+                        if (avatarUrl.startsWith('https:')) {
+                            const httpUrl = `http://obraz.mrim.su/${domain}/${username}/_mrimavatar`;
+                            avatarImg.onerror = () => {
+                                avatarImg.classList.add('hidden');
+                                defaultSvg.classList.remove('hidden');
+                            };
+                            avatarImg.src = httpUrl;
+                        } else {
+                            avatarImg.classList.add('hidden');
+                            defaultSvg.classList.remove('hidden');
+                        }
+                    };
+                    
+                    avatarImg.src = avatarUrl;
+                }
+                return;
+            }
+        }
+
+        avatarImg.dataset.currentSrc = '';
+        avatarImg.classList.add('hidden');
+        defaultSvg.classList.remove('hidden');
+    }
+
+    function updatePreviewText() {
+        if (!emailPreview) return;
+        let currentEmail = '';
+
+        if (authStatus && authStatus.textContent.includes('В сети как:')) {
+            const parts = authStatus.textContent.split('В сети как:');
+            currentEmail = parts[1].trim();
+            emailPreview.textContent = currentEmail;
+            emailPreview.classList.add('authenticated');
+            if (statusIndicator) {
+                statusIndicator.className = 'user-status-indicator status-online';
+                statusIndicator.title = 'Статус: В сети';
+            }
+        } else if (emailInput && emailInput.value.trim()) {
+            currentEmail = emailInput.value.trim();
+            emailPreview.textContent = currentEmail;
+            emailPreview.classList.remove('authenticated');
+            if (statusIndicator) {
+                statusIndicator.className = 'user-status-indicator status-offline';
+                statusIndicator.title = 'Статус: Не в сети';
+            }
+        } else {
+            emailPreview.textContent = 'Не авторизован';
+            emailPreview.classList.remove('authenticated');
+            if (statusIndicator) {
+                statusIndicator.className = 'user-status-indicator status-offline';
+                statusIndicator.title = 'Статус: Не авторизован';
+            }
+        }
+
+        updateAvatar(currentEmail);
+    }
+
+    // Toggle expand/collapse state
+    toggleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isExpanded = loginPanel.classList.contains('expanded');
+        if (isExpanded) {
+            loginPanel.classList.remove('expanded');
+            loginPanel.classList.add('collapsed');
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            toggleBtn.title = 'Развернуть панель';
+        } else {
+            loginPanel.classList.remove('collapsed');
+            loginPanel.classList.add('expanded');
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            toggleBtn.title = 'Свернуть панель';
+        }
+    });
+
+    // Auto-expand if clicking 'Войти в Агент' while panel is collapsed and form fields are missing
+    if (btnLogin) {
+        btnLogin.addEventListener('click', () => {
+            if (loginPanel.classList.contains('collapsed') && (!emailInput.value.trim() || !document.getElementById('login-pass').value)) {
+                loginPanel.classList.remove('collapsed');
+                loginPanel.classList.add('expanded');
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                if (!emailInput.value.trim()) {
+                    emailInput.focus();
+                } else {
+                    document.getElementById('login-pass').focus();
+                }
+            }
+        });
+    }
+
+    // Keep email preview updated on input
+    if (emailInput) {
+        emailInput.addEventListener('input', updatePreviewText);
+    }
+
+    // Observe status bar changes to update email preview on login success/logout
+    if (authStatus) {
+        const observer = new MutationObserver(updatePreviewText);
+        observer.observe(authStatus, { childList: true, characterData: true, subtree: true });
+    }
+
+    updatePreviewText();
+}

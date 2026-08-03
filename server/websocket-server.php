@@ -37,15 +37,22 @@ class MRIMWebServer
     /**
      * Start listening and enter the stream_select event loop
      */
-    public function start(string $host = '0.0.0.0', int $port = 3000): void
+    public function start(string $host = '0.0.0.0', int $port = 8080): void
     {
         $errno = 0;
         $errstr = '';
+        $context = stream_context_create([
+            'socket' => [
+                'so_reuseaddr' => true,
+                'so_reuseport' => true,
+            ],
+        ]);
         $this->serverSocket = @stream_socket_server(
             "tcp://$host:$port",
             $errno,
             $errstr,
-            STREAM_SERVER_BIND | STREAM_SERVER_LISTEN
+            STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+            $context
         );
 
         if (!$this->serverSocket) {
