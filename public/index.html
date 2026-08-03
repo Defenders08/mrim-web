@@ -60,18 +60,27 @@
             </div>
             <!-- Quick Add Contact / Custom Message To -->
             <div class="direct-msg-box">
-                <label for="direct-to">Написать по E-mail:</label>
+                <label for="direct-to">Написать / Добавить контакт:</label>
                 <div class="direct-input-row">
                     <input type="text" id="direct-to" placeholder="friend@mrim.su">
-                    <button type="button" class="btn" id="btn-select-contact">&gt;&gt;</button>
+                    <button type="button" class="btn" id="btn-select-contact" title="Чат">&gt;&gt;</button>
+                    <button type="button" class="btn btn-auth" id="btn-add-contact" title="Добавить контакт в список и авторизовать">+</button>
                 </div>
             </div>
         </div>
 
         <!-- Right Column: Chat Box -->
         <div class="chat-panel panel">
-            <div class="panel-header">
-                <b>Чат:</b> <span id="current-chat-title">Выберите контакт из списка</span>
+            <div class="panel-header chat-header-row">
+                <div>
+                    <b>Чат:</b> <span id="current-chat-title">Выберите контакт из списка</span>
+                    <span id="typing-indicator" class="typing-status hidden">✍️ печатает...</span>
+                </div>
+                <div id="chat-header-actions" class="hidden">
+                    <button type="button" class="btn btn-small btn-auth" id="btn-authorize-active" title="Отправить пакет авторизации (MRIM_CS_AUTHORIZE) этому контакту">
+                        🔓 Авторизовать контакт
+                    </button>
+                </div>
             </div>
             <div class="chat-history" id="chat-history">
                 <div class="chat-welcome">

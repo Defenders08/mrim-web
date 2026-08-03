@@ -32,7 +32,11 @@ const el = {
     contactsList: document.getElementById('contacts-list'),
     directTo:     document.getElementById('direct-to'),
     btnSelectContact: document.getElementById('btn-select-contact'),
+    btnAddContact:    document.getElementById('btn-add-contact'),
     currentChatTitle: document.getElementById('current-chat-title'),
+    chatHeaderActions:document.getElementById('chat-header-actions'),
+    btnAuthorizeActive:document.getElementById('btn-authorize-active'),
+    typingIndicator:  document.getElementById('typing-indicator'),
     chatHistory:  document.getElementById('chat-history'),
     sendForm:     document.getElementById('send-form'),
     messageInput: document.getElementById('message-input'),
@@ -202,7 +206,16 @@ function handleServerEvent(type, data) {
             if (data && data.from && data.text !== undefined) {
                 console.log("HANDLE MESSAGE", data.from, data.text);
                 logToConsole(`Входящее сообщение от ${data.from}: ${data.text}`, 'info');
-                handleIncomingMessage(data.from, data.text, data.timestamp);
+                handleIncomingMessage(data.from, data.text, data.timestamp, data.is_auth_request, data.sender_nick);
+            }
+            break;
+
+        case 'typing_notification':
+            if (data && data.from) {
+                const typingFrom = data.from.toLowerCase().trim();
+                if (state.activeContact === typingFrom) {
+                    showTypingIndicator();
+                }
             }
             break;
 
@@ -215,10 +228,32 @@ function handleServerEvent(type, data) {
         case 'message_delivery_status':
             if (data) {
                 if (data.success) {
-                    logToConsole(`Сообщение успешно доставлено (статус ${data.code})`, 'info');
+                    logToConsole(`Сообщение успешно доставлено: ${data.text || data.code}`, 'info');
                 } else {
-                    logToConsole(`Ошибка доставки сообщения (код ${data.code})`, 'error');
+                    logToConsole(`Ошибка доставки сообщения: ${data.text || data.code}`, 'error');
+                    if (data.need_authorize && state.activeContact) {
+                        logToConsole(`Совет: Нажмите кнопку '🔓 Авторизовать контакт' в шапке чата, чтобы отправить запрос авторизации контакту ${state.activeContact}`, 'warning');
+                    }
                 }
+            }
+            break;
+
+        case 'authorize_request':
+            if (data && data.from) {
+                const reqFrom = data.from.toLowerCase().trim();
+                logToConsole(`Запрос авторизации от ${reqFrom}: ${data.text || ''}`, 'warning');
+                if (!state.contacts[reqFrom]) {
+                    state.contacts[reqFrom] = {
+                        email: reqFrom,
+                        nickname: data.nick || reqFrom,
+                        status: 1,
+                        unread: 1,
+                        hasAuthReq: true
+                    };
+                } else {
+                    state.contacts[reqFrom].hasAuthReq = true;
+                }
+                renderContacts();
             }
             break;
 
@@ -232,10 +267,21 @@ function handleServerEvent(type, data) {
     }
 }
 
+let typingTimeout = null;
+
+function showTypingIndicator() {
+    if (!el.typingIndicator) return;
+    el.typingIndicator.classList.remove('hidden');
+    if (typingTimeout) clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        if (el.typingIndicator) el.typingIndicator.classList.add('hidden');
+    }, 3500);
+}
+
 /**
  * Handle incoming message from a contact
  */
-function handleIncomingMessage(rawFrom, text, timestamp) {
+function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, senderNick = '') {
     if (!rawFrom) return;
     const fromEmail = rawFrom.toLowerCase().trim();
 
@@ -252,16 +298,26 @@ function handleIncomingMessage(rawFrom, text, timestamp) {
         from: fromEmail,
         text: text,
         timestamp: timestamp || Math.floor(Date.now() / 1000),
-        isMe: false
+        isMe: false,
+        isAuthReq: isAuthReq || false,
+        senderNick: senderNick || ''
     });
 
     if (!state.contacts[fromEmail]) {
         state.contacts[fromEmail] = {
             email: fromEmail,
-            nickname: fromEmail,
+            nickname: senderNick || fromEmail,
             status: 1,
-            unread: 0
+            unread: 0,
+            hasAuthReq: isAuthReq
         };
+    } else {
+        if (isAuthReq) {
+            state.contacts[fromEmail].hasAuthReq = true;
+        }
+        if (senderNick && state.contacts[fromEmail].nickname === fromEmail) {
+            state.contacts[fromEmail].nickname = senderNick;
+        }
     }
 
     if (state.activeContact === fromEmail) {
@@ -345,6 +401,15 @@ function renderContacts() {
         left.appendChild(nameSpan);
         item.appendChild(left);
 
+        if (c.hasAuthReq) {
+            const authBadge = document.createElement('span');
+            authBadge.className = 'unread-badge';
+            authBadge.style.backgroundColor = '#d29922';
+            authBadge.textContent = '🔑';
+            authBadge.title = 'Пользователь просит авторизацию';
+            item.appendChild(authBadge);
+        }
+
         if (c.unread && c.unread > 0) {
             const badge = document.createElement('span');
             badge.className = 'unread-badge';
@@ -377,6 +442,10 @@ function selectContact(rawEmail) {
     el.currentChatTitle.textContent = `${state.contacts[email].nickname} (${email})`;
     el.messageInput.disabled = (state.mrimState !== 'authenticated');
     el.btnSend.disabled = (state.mrimState !== 'authenticated');
+
+    if (el.chatHeaderActions) {
+        el.chatHeaderActions.classList.toggle('hidden', state.mrimState !== 'authenticated');
+    }
 
     renderContacts();
     renderChatHistory();
@@ -420,6 +489,40 @@ function renderChatHistory() {
 
         item.appendChild(header);
         item.appendChild(body);
+
+        if (m.isAuthReq || (!m.isMe && (m.text.includes('добавьте меня') || m.text.includes('Запрос авторизации')))) {
+            const authCard = document.createElement('div');
+            authCard.className = 'msg-auth-card';
+
+            const inner = document.createElement('div');
+            inner.className = 'auth-card-inner';
+
+            const title = document.createElement('div');
+            title.className = 'auth-card-title';
+            title.innerHTML = `📬 <b>Запрос авторизации</b> от ${m.from}`;
+
+            const btnApprove = document.createElement('button');
+            btnApprove.type = 'button';
+            btnApprove.className = 'btn btn-auth btn-approve-card';
+            btnApprove.textContent = '✅ Одобрить авторизацию';
+            btnApprove.onclick = () => {
+                logToConsole(`Одобрение авторизации для ${m.from}...`, 'info');
+                sendWsCommand('authorize_contact', { email: m.from });
+                sendWsCommand('add_contact', { email: m.from, nickname: m.from });
+                btnApprove.disabled = true;
+                btnApprove.textContent = '✅ Авторизован!';
+                if (state.contacts[m.from]) {
+                    state.contacts[m.from].hasAuthReq = false;
+                    renderContacts();
+                }
+            };
+
+            inner.appendChild(title);
+            inner.appendChild(btnApprove);
+            authCard.appendChild(inner);
+            item.appendChild(authCard);
+        }
+
         el.chatHistory.appendChild(item);
     });
 
@@ -491,6 +594,27 @@ el.btnSelectContact.addEventListener('click', () => {
         el.directTo.value = '';
     }
 });
+
+if (el.btnAddContact) {
+    el.btnAddContact.addEventListener('click', () => {
+        const email = el.directTo.value.trim();
+        if (email) {
+            logToConsole(`Отправка запроса на добавление и авторизацию контакта: ${email}...`, 'info');
+            sendWsCommand('add_contact', { email, nickname: email });
+            selectContact(email);
+            el.directTo.value = '';
+        }
+    });
+}
+
+if (el.btnAuthorizeActive) {
+    el.btnAuthorizeActive.addEventListener('click', () => {
+        if (state.activeContact) {
+            logToConsole(`Отправка пакета авторизации MRIM_CS_AUTHORIZE для ${state.activeContact}...`, 'info');
+            sendWsCommand('authorize_contact', { email: state.activeContact });
+        }
+    });
+}
 
 el.sendForm.addEventListener('submit', (e) => {
     e.preventDefault();

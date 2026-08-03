@@ -13,25 +13,25 @@ class MRIMWebServer
 {
     private $serverSocket;
     private array $clients = [];
-    private MRIMClient $mrimClient;
+    private array $config;
     private string $publicDir;
     private bool $running = true;
 
     public function __construct(array $config)
     {
         $this->publicDir = realpath(__DIR__ . '/../public') ?: (__DIR__ . '/../public');
-        $this->mrimClient = new MRIMClient($config);
+        $this->config = $config;
+    }
 
-        // Bind callback events from MRIMClient to broadcast to connected WebSockets
-        $this->mrimClient->setEventCallback(function (string $event, array $data) {
-            $this->broadcastJson(['type' => $event, 'data' => $data]);
-        });
-
-        $this->mrimClient->setLoggerCallback(function (string $msg, string $level) {
-            $line = "[" . date('H:i:s') . "] [$level] $msg";
-            echo $line . PHP_EOL;
-            $this->broadcastJson(['type' => 'log', 'data' => ['message' => $msg, 'level' => $level]]);
-        });
+    /**
+     * Generate a UUID v4 string for WebSocket session tracking
+     */
+    private function generateUuid(): string
+    {
+        $data = random_bytes(16);
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
     /**
@@ -75,14 +75,17 @@ class MRIMWebServer
                 if (is_resource($client['socket'])) {
                     $readSockets[] = $client['socket'];
                 } else {
-                    unset($this->clients[$id]);
+                    $this->closeClient($id);
+                    continue;
                 }
-            }
 
-            // Add MRIM TCP socket if connected
-            $mrimSock = $this->mrimClient->getSocket();
-            if ($mrimSock && is_resource($mrimSock)) {
-                $readSockets[] = $mrimSock;
+                // Add MRIM TCP socket for each specific WebSocket client if connected
+                if (!empty($client['mrim_client'])) {
+                    $mrimSock = $client['mrim_client']->getSocket();
+                    if ($mrimSock && is_resource($mrimSock)) {
+                        $readSockets[] = $mrimSock;
+                    }
+                }
             }
 
             $writeSockets = null;
@@ -91,8 +94,12 @@ class MRIMWebServer
             // Wait up to 200ms for activity
             $numReady = @stream_select($readSockets, $writeSockets, $exceptSockets, 0, 200000);
 
-            // Periodically check ping intervals
-            $this->mrimClient->checkPing();
+            // Periodically check ping intervals per client
+            foreach ($this->clients as $client) {
+                if (!empty($client['mrim_client'])) {
+                    $client['mrim_client']->checkPing();
+                }
+            }
 
             if ($numReady === false) {
                 // Interrupted system call
@@ -107,11 +114,18 @@ class MRIMWebServer
                     unset($readSockets[$key]);
                 }
 
-                // 2. Check for incoming bytes from MRIM TCP server
-                if ($mrimSock && in_array($mrimSock, $readSockets, true)) {
-                    $this->mrimClient->readLoopStep();
-                    $key = array_search($mrimSock, $readSockets, true);
-                    unset($readSockets[$key]);
+                // 2. Check for incoming bytes from any active MRIM TCP sockets
+                foreach ($this->clients as $id => $client) {
+                    if (!empty($client['mrim_client'])) {
+                        $mrimSock = $client['mrim_client']->getSocket();
+                        if ($mrimSock && in_array($mrimSock, $readSockets, true)) {
+                            $client['mrim_client']->readLoopStep();
+                            $key = array_search($mrimSock, $readSockets, true);
+                            if ($key !== false) {
+                                unset($readSockets[$key]);
+                            }
+                        }
+                    }
                 }
 
                 // 3. Process incoming HTTP requests or WebSocket frames from browsers
@@ -131,10 +145,14 @@ class MRIMWebServer
         if ($newSocket) {
             stream_set_blocking($newSocket, false);
             $id = (int) $newSocket;
+            $sessionUuid = $this->generateUuid();
+
             $this->clients[$id] = [
                 'socket'      => $newSocket,
                 'is_websocket'=> false,
                 'buffer'      => '',
+                'session_uuid'=> $sessionUuid,
+                'mrim_client' => null,
                 'connected_at'=> time(),
             ];
         }
@@ -193,13 +211,32 @@ class MRIMWebServer
             $this->clients[$id]['buffer'] = '';
             $this->clients[$id]['ws_buffer'] = '';
 
-            // Immediately send current MRIM status & contacts to newly connected tab
+            // Instantiate dedicated MRIMClient specifically bound to this WebSocket connection
+            $mrimClient = new MRIMClient($this->config);
+            
+            $mrimClient->setEventCallback(function (string $event, array $data) use ($id) {
+                $this->sendJsonToClient($id, ['type' => $event, 'data' => $data]);
+            });
+
+            $mrimClient->setLoggerCallback(function (string $msg, string $level) use ($id) {
+                $line = "[" . date('H:i:s') . "] [$level] [WS ID: $id] $msg";
+                echo $line . PHP_EOL;
+                $this->sendJsonToClient($id, ['type' => 'log', 'data' => ['message' => $msg, 'level' => $level]]);
+            });
+
+            $this->clients[$id]['mrim_client'] = $mrimClient;
+
+            $wsUuid = $this->clients[$id]['session_uuid'];
+            $mrimHash = spl_object_id($mrimClient);
+            echo "[DEBUG] Established WebSocket connection [WS ID: $id, Session UUID: $wsUuid] with dedicated MRIMClient [Hash: $mrimHash]\n";
+
+            // Immediately send current MRIM status & contacts for this specific client
             $this->sendJsonToClient($id, [
                 'type' => 'init_state',
                 'data' => [
-                    'mrim_state' => $this->mrimClient->getState(),
-                    'contacts'   => array_values($this->mrimClient->getContacts()),
-                    'my_email'   => $this->mrimClient->getEmail(),
+                    'mrim_state' => $mrimClient->getState(),
+                    'contacts'   => array_values($mrimClient->getContacts()),
+                    'my_email'   => $mrimClient->getEmail(),
                 ]
             ]);
             return;
@@ -337,7 +374,23 @@ class MRIMWebServer
      */
     private function handleBrowserCommand(int $clientId, array $command): void
     {
+        if (!isset($this->clients[$clientId])) {
+            return;
+        }
+
+        $clientInfo = $this->clients[$clientId];
+        /** @var MRIMClient|null $mrimClient */
+        $mrimClient = $clientInfo['mrim_client'] ?? null;
+        $wsUuid = $clientInfo['session_uuid'] ?? 'unknown';
+
+        if (!$mrimClient) {
+            echo "[SECURITY ERROR] No MRIMClient instance associated with WS ID: $clientId\n";
+            return;
+        }
+
         $action = $command['action'] ?? '';
+        $mrimHash = spl_object_id($mrimClient);
+        $authenticatedEmail = $mrimClient->getEmail();
 
         switch ($action) {
             case 'login':
@@ -353,18 +406,41 @@ class MRIMWebServer
                     return;
                 }
 
-                $this->broadcastJson(['type' => 'status_log', 'data' => ['message' => "Connecting to MRIM as $email..."]]);
-                $this->mrimClient->connect($email, $password, $status);
+                echo "[DEBUG] Login command received [WS ID: $clientId, Session UUID: $wsUuid, Login: $email, MRIMClient Hash: $mrimHash]\n";
+                $this->sendJsonToClient($clientId, ['type' => 'status_log', 'data' => ['message' => "Connecting to MRIM as $email..."]]);
+                $mrimClient->connect($email, $password, $status);
                 break;
 
             case 'send_message':
                 $to = trim($command['to'] ?? '');
                 $text = (string) ($command['text'] ?? '');
+
+                // Verify sender authentication and log details
+                $mrimState = $mrimClient->getState();
+                $ownerMatch = ($mrimState === 'authenticated' && $authenticatedEmail !== '');
+
+                echo "[DEBUG] send_message attempt:\n"
+                   . "  - WS ID: $clientId\n"
+                   . "  - Session UUID: $wsUuid\n"
+                   . "  - Claimed/Auth Login: " . ($authenticatedEmail !== '' ? $authenticatedEmail : 'unauthenticated') . "\n"
+                   . "  - MRIMClient Hash (spl_object_id): $mrimHash\n"
+                   . "  - Owner Match: " . ($ownerMatch ? 'YES' : 'NO') . "\n"
+                   . "  - Recipient: $to\n";
+
                 if ($to !== '' && $text !== '') {
-                    $sent = $this->mrimClient->sendMessage($to, $text);
+                    if ($mrimState !== 'authenticated') {
+                        echo "[SECURITY REJECTION] Cannot send message: WS ID $clientId is not authenticated in MRIM.\n";
+                        $this->sendJsonToClient($clientId, [
+                            'type' => 'log',
+                            'data' => ['message' => 'Error: You must be logged in to send messages.', 'level' => 'error']
+                        ]);
+                        return;
+                    }
+
+                    $sent = $mrimClient->sendMessage($to, $text);
                     if ($sent) {
-                        // Echo sent message back to browser UI
-                        $this->broadcastJson([
+                        // Echo sent message strictly back to THIS browser WebSocket client only
+                        $this->sendJsonToClient($clientId, [
                             'type' => 'message_sent',
                             'data' => [
                                 'to'   => $to,
@@ -376,17 +452,40 @@ class MRIMWebServer
                 }
                 break;
 
+            case 'authorize_contact':
+                $email = trim($command['email'] ?? '');
+                if ($email !== '') {
+                    $mrimClient->authorizeContact($email);
+                }
+                break;
+
+            case 'add_contact':
+                $email = trim($command['email'] ?? '');
+                $nickname = trim($command['nickname'] ?? '');
+                if ($email !== '') {
+                    $mrimClient->addContact($email, $nickname);
+                }
+                break;
+
+            case 'request_authorization':
+                $email = trim($command['email'] ?? '');
+                $reason = trim($command['reason'] ?? '');
+                if ($email !== '') {
+                    $mrimClient->requestAuthorization($email, $reason);
+                }
+                break;
+
             case 'reconnect':
-                $this->mrimClient->reconnect();
+                $mrimClient->reconnect();
                 break;
 
             case 'logout':
-                $this->mrimClient->disconnect();
-                $this->broadcastJson(['type' => 'logout', 'data' => ['reason' => 'User requested logout']]);
+                $mrimClient->disconnect();
+                $this->sendJsonToClient($clientId, ['type' => 'logout', 'data' => ['reason' => 'User requested logout']]);
                 break;
 
             case 'ping':
-                $this->mrimClient->sendPing();
+                $mrimClient->sendPing();
                 break;
 
             default:
@@ -403,7 +502,8 @@ class MRIMWebServer
             return;
         }
 
-        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $cleanPayload = MRIMProtocol::cleanArrayForJson($payload);
+        $json = json_encode($cleanPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $len = strlen($json);
 
         if ($len <= 125) {
@@ -418,23 +518,26 @@ class MRIMWebServer
     }
 
     /**
-     * Broadcast a JSON event to all connected WebSocket clients
-     */
-    private function broadcastJson(array $payload): void
-    {
-        foreach (array_keys($this->clients) as $id) {
-            $this->sendJsonToClient($id, $payload);
-        }
-    }
-
-    /**
-     * Close browser socket connection
+     * Close browser socket connection and completely clean up MRIMClient instance
      */
     private function closeClient(int $id): void
     {
         if (isset($this->clients[$id])) {
+            $wsUuid = $this->clients[$id]['session_uuid'] ?? 'unknown';
+            /** @var MRIMClient|null $mrimClient */
+            $mrimClient = $this->clients[$id]['mrim_client'] ?? null;
+
+            if ($mrimClient) {
+                $mrimHash = spl_object_id($mrimClient);
+                $email = $mrimClient->getEmail();
+                echo "[DEBUG] Destroying MRIMClient instance [Hash: $mrimHash, Login: $email] for disconnected WebSocket [WS ID: $id, Session UUID: $wsUuid]\n";
+                $mrimClient->disconnect();
+                $this->clients[$id]['mrim_client'] = null;
+            }
+
             @fclose($this->clients[$id]['socket']);
             unset($this->clients[$id]);
+            echo "[DEBUG] WebSocket connection [WS ID: $id, Session UUID: $wsUuid] closed and purged.\n";
         }
     }
 }

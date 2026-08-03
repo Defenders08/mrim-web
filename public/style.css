@@ -305,6 +305,59 @@ body {
 .log-warning { color: #d29922; }
 .log-debug { color: #8b949e; }
 
+.btn-auth {
+    background-color: #28a745;
+    color: #ffffff;
+    border: 1px solid #1e7e34;
+    font-weight: bold;
+}
+
+.btn-auth:hover {
+    background-color: #218838;
+}
+
+.chat-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.msg-auth-card {
+    background-color: #e6f4ea;
+    border: 1px solid #34a853;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
+
+.auth-card-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.auth-card-title {
+    color: #137333;
+    font-size: 13px;
+}
+
+.btn-approve-card {
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.typing-status {
+    font-size: 11px;
+    color: #0078d4;
+    font-style: italic;
+    margin-left: 8px;
+}
+
 .hidden {
     display: none !important;
 }
