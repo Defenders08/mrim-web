@@ -13,9 +13,9 @@ return [
     'mrim_dispatcher_port' => 2042,
 
     // Web / WebSocket server configuration
-    // Port 8080 for PHP WebSocket server (proxied by Vite on port 3000)
+    // Port 3000 for PHP HTTP/WebSocket server
     'server_host' => '0.0.0.0',
-    'server_port' => 8080,
+    'server_port' => (int) (getenv('PORT') ?: 3000),
 
     // MRIM client identification string sent during CS_LOGIN2
     'mrim_client_name' => 'client="mrim-web-client 1.0"',

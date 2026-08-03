@@ -72,8 +72,14 @@
         </form>
     </div>
 
+    <!-- Mobile Workspace Tabs (visible on <=768px) -->
+    <div class="mobile-workspace-tabs" id="mobile-workspace-tabs">
+        <button type="button" class="mobile-tab-btn active" id="tab-btn-contacts">👥 Контакты <span id="mobile-contacts-badge"></span></button>
+        <button type="button" class="mobile-tab-btn" id="tab-btn-chat">💬 Чат</button>
+    </div>
+
     <!-- Main Workspace: Contacts & Chat -->
-    <div class="workspace">
+    <div class="workspace mobile-view-contacts" id="workspace">
         <!-- Left Column: Contact List -->
         <div class="contacts-panel panel">
             <div class="panel-header">
@@ -97,13 +103,14 @@
         <!-- Right Column: Chat Box -->
         <div class="chat-panel panel">
             <div class="panel-header chat-header-row">
-                <div>
+                <div class="chat-title-group">
+                    <button type="button" class="btn btn-small btn-back-contacts" id="btn-back-contacts" title="Назад к контактам">← Контакты</button>
                     <b>Чат:</b> <span id="current-chat-title">Выберите контакт из списка</span>
                     <span id="typing-indicator" class="typing-status hidden">✍️ печатает...</span>
                 </div>
                 <div id="chat-header-actions" class="hidden">
                     <button type="button" class="btn btn-small btn-auth" id="btn-authorize-active" title="Отправить пакет авторизации (MRIM_CS_AUTHORIZE) этому контакту">
-                        🔓 Авторизовать контакт
+                        🔓 Авторизовать
                     </button>
                 </div>
             </div>

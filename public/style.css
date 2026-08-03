@@ -15,13 +15,16 @@ body {
     background-color: #e4e7eb;
     color: #000000;
     padding: 10px;
+    min-height: 100vh;
 }
 
 .agent-window {
-    width: 960px;
+    max-width: 960px;
+    width: 100%;
     margin: 0 auto;
     background-color: #f0f3f6;
     border: 2px solid #5a7b9c;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 /* Top Title Bar */
@@ -567,6 +570,22 @@ body {
     white-space: nowrap;
 }
 
+.chat-title-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.mobile-workspace-tabs {
+    display: none;
+}
+
+.btn-back-contacts {
+    display: none;
+}
+
 .typing-status {
     font-size: 11px;
     color: #0078d4;
@@ -587,5 +606,207 @@ body {
 }
 .chat-message {
     line-height: 22px;
+}
+
+/* ============================================================================
+   Responsive Media Queries (Tablet & Mobile)
+   ============================================================================ */
+@media (max-width: 768px) {
+    body {
+        padding: 4px;
+    }
+
+    .title-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        padding: 8px 10px;
+    }
+
+    .title-text {
+        font-size: 13px;
+        word-break: break-word;
+    }
+
+    .server-status {
+        font-size: 11px;
+    }
+
+    .login-header-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .login-header-info {
+        width: 100%;
+    }
+
+    .user-email-preview {
+        max-width: 100%;
+    }
+
+    .login-header-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .panel-buttons-group {
+        flex: 1;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .panel-buttons-group .btn {
+        flex: 1 1 auto;
+        text-align: center;
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+
+    .form-grid {
+        padding: 8px;
+        gap: 8px;
+    }
+
+    .form-field {
+        flex: 1 1 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+    }
+
+    .form-field label {
+        font-size: 11px;
+    }
+
+    .form-field input[type="text"],
+    .form-field input[type="password"],
+    .form-field select {
+        font-size: 14px;
+        padding: 6px;
+    }
+
+    .login-panel.expanded .login-expandable-content {
+        max-height: 320px;
+    }
+
+    /* Mobile Tabs Navigation */
+    .mobile-workspace-tabs {
+        display: flex;
+        gap: 4px;
+        margin: 6px 6px 0 6px;
+    }
+
+    .mobile-tab-btn {
+        flex: 1;
+        padding: 8px 10px;
+        background-color: #d0d8e0;
+        border: 1px solid #6a7a8a;
+        font-family: Tahoma, Verdana, sans-serif;
+        font-size: 13px;
+        font-weight: bold;
+        color: #2b3a4a;
+        cursor: pointer;
+        text-align: center;
+        transition: background-color 0.2s, color 0.2s;
+    }
+
+    .mobile-tab-btn.active {
+        background-color: #3b5998;
+        color: #ffffff;
+        border-color: #263d6b;
+    }
+
+    /* Workspace Mobile Switching */
+    .workspace {
+        flex-direction: column;
+    }
+
+    .workspace.mobile-view-contacts .contacts-panel {
+        display: flex;
+        width: 100%;
+    }
+
+    .workspace.mobile-view-contacts .chat-panel {
+        display: none !important;
+    }
+
+    .workspace.mobile-view-chat .contacts-panel {
+        display: none !important;
+    }
+
+    .workspace.mobile-view-chat .chat-panel {
+        display: flex;
+        width: 100%;
+    }
+
+    .btn-back-contacts {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        font-size: 11px;
+        background-color: #bcd4e6;
+        border: 1px solid #5a7b9c;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .contacts-panel {
+        width: 100%;
+    }
+
+    .contacts-list {
+        height: clamp(220px, 50vh, 420px);
+    }
+
+    .chat-history {
+        height: clamp(220px, 50vh, 420px);
+    }
+
+    .send-box {
+        gap: 6px;
+    }
+
+    .send-box textarea {
+        font-size: 14px;
+        padding: 6px;
+    }
+
+    .btn-send {
+        padding: 8px 16px;
+    }
+
+    .logs-console {
+        height: 90px;
+        font-size: 11px;
+    }
+
+    .auth-card-inner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .btn {
+        padding: 6px 10px;
+    }
+
+    .direct-input-row {
+        flex-wrap: wrap;
+    }
+
+    .direct-input-row input {
+        flex: 1 1 100%;
+        font-size: 14px;
+        padding: 6px;
+    }
+
+    .chat-header-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
 }
 

@@ -567,6 +567,10 @@ function selectContact(rawEmail) {
     renderContacts();
     renderChatHistory();
     el.messageInput.focus();
+
+    if (window.innerWidth <= 768) {
+        switchMobileTab('chat');
+    }
 }
 
 /**
@@ -761,6 +765,7 @@ el.btnClearLogs.addEventListener('click', () => {
 window.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
     initLoginPanelToggle();
+    initMobileNavigation();
 });
 
 // ==========================================
@@ -903,4 +908,43 @@ function initLoginPanelToggle() {
     }
 
     updatePreviewText();
+}
+
+// ==========================================
+// Responsive Mobile Navigation Controls
+// ==========================================
+function initMobileNavigation() {
+    const btnContacts = document.getElementById('tab-btn-contacts');
+    const btnChat = document.getElementById('tab-btn-chat');
+    const btnBack = document.getElementById('btn-back-contacts');
+
+    if (btnContacts) {
+        btnContacts.addEventListener('click', () => switchMobileTab('contacts'));
+    }
+    if (btnChat) {
+        btnChat.addEventListener('click', () => switchMobileTab('chat'));
+    }
+    if (btnBack) {
+        btnBack.addEventListener('click', () => switchMobileTab('contacts'));
+    }
+}
+
+function switchMobileTab(tab) {
+    const workspace = document.getElementById('workspace');
+    const btnContacts = document.getElementById('tab-btn-contacts');
+    const btnChat = document.getElementById('tab-btn-chat');
+
+    if (!workspace) return;
+
+    if (tab === 'chat') {
+        workspace.classList.add('mobile-view-chat');
+        workspace.classList.remove('mobile-view-contacts');
+        if (btnContacts) btnContacts.classList.remove('active');
+        if (btnChat) btnChat.classList.add('active');
+    } else {
+        workspace.classList.add('mobile-view-contacts');
+        workspace.classList.remove('mobile-view-chat');
+        if (btnContacts) btnContacts.classList.add('active');
+        if (btnChat) btnChat.classList.remove('active');
+    }
 }
