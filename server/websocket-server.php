@@ -191,6 +191,7 @@ class MRIMWebServer
             @fwrite($sock, $upgradeResponse);
             $this->clients[$id]['is_websocket'] = true;
             $this->clients[$id]['buffer'] = '';
+            $this->clients[$id]['ws_buffer'] = '';
 
             // Immediately send current MRIM status & contacts to newly connected tab
             $this->sendJsonToClient($id, [
@@ -198,6 +199,7 @@ class MRIMWebServer
                 'data' => [
                     'mrim_state' => $this->mrimClient->getState(),
                     'contacts'   => array_values($this->mrimClient->getContacts()),
+                    'my_email'   => $this->mrimClient->getEmail(),
                 ]
             ]);
             return;
@@ -245,57 +247,88 @@ class MRIMWebServer
     }
 
     /**
-     * Decode RFC 6455 WebSocket frame from browser
+     * Decode RFC 6455 WebSocket frames from browser buffer
      */
     private function processWebSocketFrame(int $id, string $data): void
     {
-        $bytes = array_values(unpack('C*', $data));
-        if (count($bytes) < 6) {
+        if (!isset($this->clients[$id])) {
             return;
         }
 
-        $firstByte = $bytes[0];
-        $opcode = $firstByte & 0x0F;
+        $this->clients[$id]['ws_buffer'] .= $data;
+        $buf = &$this->clients[$id]['ws_buffer'];
 
-        // Close control frame
-        if ($opcode === 0x08) {
-            $this->closeClient($id);
-            return;
-        }
+        while (strlen($buf) >= 2) {
+            $firstByte = ord($buf[0]);
+            $secondByte = ord($buf[1]);
 
-        // Ping control frame -> send Pong
-        if ($opcode === 0x09) {
-            return;
-        }
+            $opcode = $firstByte & 0x0F;
+            $isMasked = ($secondByte & 0x80) !== 0;
+            $payloadLen = $secondByte & 0x7F;
 
-        $secondByte = $bytes[1];
-        $isMasked = ($secondByte & 0x80) !== 0;
-        $payloadLen = $secondByte & 0x7F;
+            $offset = 2;
 
-        $offset = 2;
-        if ($payloadLen === 126) {
-            $payloadLen = ($bytes[2] << 8) + $bytes[3];
-            $offset = 4;
-        } elseif ($payloadLen === 127) {
-            $offset = 10; // Skip 64-bit int calculation for short JSON messages
-        }
+            if ($payloadLen === 126) {
+                if (strlen($buf) < 4) break;
+                $payloadLen = unpack('n', substr($buf, 2, 2))[1];
+                $offset = 4;
+            } elseif ($payloadLen === 127) {
+                if (strlen($buf) < 10) break;
+                // Read 64-bit integer length
+                $p = unpack('N2', substr($buf, 2, 8));
+                $payloadLen = ($p[1] << 32) | $p[2];
+                $offset = 10;
+            }
 
-        if (!$isMasked || count($bytes) < $offset + 4) {
-            return;
-        }
+            $maskLen = $isMasked ? 4 : 0;
+            $totalLen = $offset + $maskLen + $payloadLen;
 
-        $mask = array_slice($bytes, $offset, 4);
-        $offset += 4;
+            if (strlen($buf) < $totalLen) {
+                // Wait for more bytes
+                break;
+            }
 
-        $payloadBytes = array_slice($bytes, $offset, $payloadLen);
-        $unmasked = '';
-        foreach ($payloadBytes as $i => $b) {
-            $unmasked .= chr($b ^ $mask[$i % 4]);
-        }
+            $frameData = substr($buf, 0, $totalLen);
+            $buf = substr($buf, $totalLen);
 
-        $command = json_decode($unmasked, true);
-        if (is_array($command)) {
-            $this->handleBrowserCommand($id, $command);
+            // Handle connection close opcode
+            if ($opcode === 0x08) {
+                $this->closeClient($id);
+                return;
+            }
+
+            // Ping control frame -> send Pong
+            if ($opcode === 0x09) {
+                $pongHeader = pack('CC', 0x8A, $payloadLen);
+                $pongMask = $maskLen ? substr($frameData, $offset, 4) : '';
+                $pongPayload = substr($frameData, $offset + $maskLen, $payloadLen);
+                if ($isMasked) {
+                    $unmaskedPong = '';
+                    for ($i = 0; $i < $payloadLen; $i++) {
+                        $unmaskedPong .= chr(ord($pongPayload[$i]) ^ ord($pongMask[$i % 4]));
+                    }
+                    $pongPayload = $unmaskedPong;
+                }
+                @fwrite($this->clients[$id]['socket'], $pongHeader . $pongPayload);
+                continue;
+            }
+
+            $mask = $isMasked ? substr($frameData, $offset, 4) : '';
+            $rawPayload = substr($frameData, $offset + $maskLen, $payloadLen);
+
+            $unmasked = '';
+            if ($isMasked) {
+                for ($i = 0; $i < $payloadLen; $i++) {
+                    $unmasked .= chr(ord($rawPayload[$i]) ^ ord($mask[$i % 4]));
+                }
+            } else {
+                $unmasked = $rawPayload;
+            }
+
+            $command = json_decode($unmasked, true);
+            if (is_array($command)) {
+                $this->handleBrowserCommand($id, $command);
+            }
         }
     }
 

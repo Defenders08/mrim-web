@@ -43,6 +43,9 @@ class MRIMProtocol
     public const MESSAGE_FLAG_OFFLINE   = 0x00000001;
     public const MESSAGE_FLAG_NORECV    = 0x00000004;
     public const MESSAGE_FLAG_AUTHORIZE = 0x00000008;
+    public const MESSAGE_FLAG_SYSTEM    = 0x00000040;
+    public const MESSAGE_FLAG_RTF       = 0x00000080;
+    public const MESSAGE_FLAG_UTF16     = 0x00200000;
 
     /**
      * Build an MRIM 44-byte binary packet with header and payload
@@ -135,143 +138,112 @@ class MRIMProtocol
      * 4-byte length + CP1251 encoded bytes
      */
     public static function encodeLPS(string $utf8Str): string
-{
-    $cp1251 = self::utf8ToCp1251($utf8Str);
+    {
+        $cp1251 = self::utf8ToCp1251($utf8Str);
+        $len = strlen($cp1251);
+        return pack('V', $len) . $cp1251;
+    }
 
-    echo "LPS TEXT: " . $utf8Str . PHP_EOL;
-    echo "BYTES: " . bin2hex($cp1251) . PHP_EOL;
+    /**
+     * Encode MRIM LPS string in UTF-16LE
+     * Used for message text
+     */
+    public static function encodeLPSUtf16(string $utf8Str): string
+    {
+        if (function_exists('mb_convert_encoding')) {
+            $utf16 = mb_convert_encoding($utf8Str, 'UTF-16LE', 'UTF-8');
+        } elseif (function_exists('iconv')) {
+            $utf16 = iconv('UTF-8', 'UTF-16LE//IGNORE', $utf8Str) ?: $utf8Str;
+        } else {
+            $utf16 = $utf8Str;
+        }
 
-    $len = strlen($cp1251);
-    return pack('V', $len) . $cp1251;
-}
+        // MRIM requires UTF-16LE with null-terminator at end
+        $utf16 .= "\x00\x00";
 
-/**
- * Encode MRIM LPS string in UTF-16LE
- * Used for message text
- */
-public static function encodeLPSUtf16(string $utf8Str): string
-{
-    $utf16 = mb_convert_encoding(
-        $utf8Str,
-        'UTF-16LE',
-        'UTF-8'
-    );
+        return pack('V', strlen($utf16)) . $utf16;
+    }
 
-    // MRIM требует UTF-16LE с нулём в конце
-    $utf16 .= "\x00\x00";
+    /**
+     * Decode an MRIM Length-Prefixed UTF-16LE String
+     *
+     * @return array{value: string, next_offset: int}
+     */
+    public static function decodeLPSUtf16(string $data, int $offset): array
+    {
+        return self::decodeLPS($data, $offset, true);
+    }
 
-    return pack('V', strlen($utf16)) . $utf16;
-}
     /**
      * Decode an MRIM Length-Prefixed String (LPS) at offset
      *
      * @return array{value: string, next_offset: int}
      */
     public static function decodeLPS(string $data, int $offset, bool $utf16 = false): array
-{
-    $dataLen = strlen($data);
+    {
+        $dataLen = strlen($data);
 
-    if ($offset + 4 > $dataLen) {
-        return [
-            'value' => '',
-            'next_offset' => $offset
-        ];
-    }
-
-    $len = self::decodeUint32($data, $offset);
-    $offset += 4;
-
-    if ($len < 0 || $offset + $len > $dataLen) {
-        error_log("LPS ERROR: invalid length {$len}, offset {$offset}, data len {$dataLen}");
-
-        return [
-            'value' => '',
-            'next_offset' => $offset
-        ];
-    }
-
-    $rawStr = substr($data, $offset, $len);
-    error_log("LPS DEBUG LEN=$len HEX=" . bin2hex($rawStr));
-
-if ($utf16) {
-    error_log("UTF16 MODE ENABLED");
-    error_log("UTF16 RAW: " . bin2hex($rawStr));
-}
-
-$nextOffset = $offset + $len;
-
-    if ($utf16) {
-
-    // Убираем BOM, если он есть
-    if (substr($rawStr, 0, 2) === "\xFF\xFE") {
-        $rawStr = substr($rawStr, 2);
-    }
-
-    // UTF-16 должен иметь чётное количество байт
-    if (strlen($rawStr) % 2 !== 0) {
-        $rawStr = substr($rawStr, 0, -1);
-    }
-
-    if (function_exists('mb_convert_encoding')) {
-
-        $value = mb_convert_encoding(
-            $rawStr,
-            'UTF-8',
-            'UTF-16LE'
-        );
-
-    } elseif (function_exists('iconv')) {
-
-        $value = iconv(
-            'UTF-16LE',
-            'UTF-8//IGNORE',
-            $rawStr
-        );
-
-    } else {
-
-        $value = $rawStr;
-
-    }
-
-}
-
-    else {
-
-    // Проверяем UTF-16LE по нулевым байтам
-    if (
-        strlen($rawStr) >= 2 &&
-        preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $rawStr)
-    ) {
-
-        if (function_exists('mb_convert_encoding')) {
-            $value = mb_convert_encoding(
-                $rawStr,
-                'UTF-8',
-                'UTF-16LE'
-            );
-        } elseif (function_exists('iconv')) {
-            $value = iconv(
-                'UTF-16LE',
-                'UTF-8//IGNORE',
-                $rawStr
-            );
-        } else {
-            $value = $rawStr;
+        if ($offset + 4 > $dataLen) {
+            return [
+                'value' => '',
+                'next_offset' => $offset
+            ];
         }
 
-    } else {
+        $len = self::decodeUint32($data, $offset);
+        $offset += 4;
 
-        $value = self::cp1251ToUtf8($rawStr);
+        if ($len < 0 || $offset + $len > $dataLen) {
+            return [
+                'value' => '',
+                'next_offset' => $offset
+            ];
+        }
 
+        $rawStr = substr($data, $offset, $len);
+        $nextOffset = $offset + $len;
+
+        if ($utf16) {
+            // Remove UTF-16LE BOM if present
+            if (substr($rawStr, 0, 2) === "\xFF\xFE") {
+                $rawStr = substr($rawStr, 2);
+            }
+
+            // UTF-16 must have even length
+            if (strlen($rawStr) % 2 !== 0) {
+                $rawStr = substr($rawStr, 0, -1);
+            }
+
+            if (function_exists('mb_convert_encoding')) {
+                $value = mb_convert_encoding($rawStr, 'UTF-8', 'UTF-16LE');
+            } elseif (function_exists('iconv')) {
+                $value = iconv('UTF-16LE', 'UTF-8//IGNORE', $rawStr) ?: $rawStr;
+            } else {
+                $value = $rawStr;
+            }
+        } else {
+            // Auto-detect UTF-16LE vs CP1251 if control nulls exist
+            if (strlen($rawStr) >= 2 && preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $rawStr)) {
+                if (function_exists('mb_convert_encoding')) {
+                    $value = mb_convert_encoding($rawStr, 'UTF-8', 'UTF-16LE');
+                } elseif (function_exists('iconv')) {
+                    $value = iconv('UTF-16LE', 'UTF-8//IGNORE', $rawStr) ?: $rawStr;
+                } else {
+                    $value = $rawStr;
+                }
+            } else {
+                $value = self::cp1251ToUtf8($rawStr);
+            }
+        }
+
+        // Trim trailing NUL characters resulting from UTF-16 null-terminators
+        $value = rtrim($value, "\x00");
+
+        return [
+            'value' => $value,
+            'next_offset' => $nextOffset
+        ];
     }
-}
-
-    return [
-        'value' => $value,
-        'next_offset' => $nextOffset
-    ];
-}
 
 
 

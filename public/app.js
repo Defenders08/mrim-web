@@ -64,6 +64,7 @@ function connectWebSocket() {
 
     ws.onmessage = (event) => {
         try {
+            console.log("RECEIVED WS EVENT:", event.data);
             const msg = JSON.parse(event.data);
             handleServerEvent(msg.type, msg.data);
         } catch (e) {
@@ -102,9 +103,17 @@ function handleServerEvent(type, data) {
     switch (type) {
         case 'init_state':
             state.mrimState = data.mrim_state || 'disconnected';
+            if (data.my_email) {
+                state.myEmail = data.my_email.toLowerCase().trim();
+                el.authStatusBar.textContent = `В сети как: ${state.myEmail}`;
+                el.authStatusBar.style.color = '#006600';
+            }
             if (data.contacts && Array.isArray(data.contacts)) {
                 data.contacts.forEach(c => {
-                    state.contacts[c.email] = c;
+                    if (c && c.email) {
+                        const emailKey = c.email.toLowerCase().trim();
+                        state.contacts[emailKey] = { ...c, email: emailKey };
+                    }
                 });
                 renderContacts();
             }
@@ -121,15 +130,19 @@ function handleServerEvent(type, data) {
 
         case 'login_success':
             state.mrimState = 'authenticated';
-            state.myEmail = data.email;
+            state.myEmail = (data.email || '').toLowerCase().trim();
             el.authStatusBar.textContent = `В сети как: ${state.myEmail}`;
             el.authStatusBar.style.color = '#006600';
             updateAuthUI();
-            logToConsole(`Успешная авторизация на сервере mrim.su как ${data.email}!`, 'info');
+            logToConsole(`Успешная авторизация на сервере mrim.su как ${state.myEmail}!`, 'info');
             break;
 
         case 'login_error':
             state.mrimState = 'disconnected';
+            state.contacts = {};
+            state.activeContact = null;
+            renderContacts();
+            renderChatHistory();
             el.authStatusBar.textContent = `Ошибка входа: ${data.reason}`;
             el.authStatusBar.style.color = '#cc0000';
             updateAuthUI();
@@ -139,6 +152,10 @@ function handleServerEvent(type, data) {
         case 'logout':
         case 'disconnected':
             state.mrimState = 'disconnected';
+            state.contacts = {};
+            state.activeContact = null;
+            renderContacts();
+            renderChatHistory();
             el.authStatusBar.textContent = 'Отключено от сервера MRIM.';
             el.authStatusBar.style.color = '#666666';
             updateAuthUI();
@@ -147,12 +164,16 @@ function handleServerEvent(type, data) {
 
         case 'contact_list':
             if (Array.isArray(data.contacts)) {
+                state.contacts = {};
                 data.contacts.forEach(c => {
-                    const existing = state.contacts[c.email] || {};
-                    state.contacts[c.email] = {
-                        ...existing,
-                        ...c,
-                    };
+                    if (c && c.email) {
+                        const emailKey = c.email.toLowerCase().trim();
+                        state.contacts[emailKey] = {
+                            ...c,
+                            email: emailKey,
+                            unread: state.contacts[emailKey]?.unread || 0
+                        };
+                    }
                 });
                 renderContacts();
                 logToConsole(`Загружен список контактов (${data.contacts.length} шт.)`, 'info');
@@ -161,12 +182,13 @@ function handleServerEvent(type, data) {
 
         case 'user_status':
             if (data && data.email) {
-                const existing = state.contacts[data.email] || {
-                    email: data.email,
-                    nickname: data.email,
+                const emailKey = data.email.toLowerCase().trim();
+                const existing = state.contacts[emailKey] || {
+                    email: emailKey,
+                    nickname: emailKey,
                     unread: 0
                 };
-                state.contacts[data.email] = {
+                state.contacts[emailKey] = {
                     ...existing,
                     status: data.status,
                     status_title: data.status_title,
@@ -177,11 +199,27 @@ function handleServerEvent(type, data) {
             break;
 
         case 'message':
-            handleIncomingMessage(data.from, data.text, data.timestamp);
+            if (data && data.from && data.text !== undefined) {
+                console.log("HANDLE MESSAGE", data.from, data.text);
+                logToConsole(`Входящее сообщение от ${data.from}: ${data.text}`, 'info');
+                handleIncomingMessage(data.from, data.text, data.timestamp);
+            }
             break;
 
         case 'message_sent':
-            handleOutgoingMessage(data.to, data.text, data.timestamp);
+            if (data && data.to && data.text) {
+                handleOutgoingMessage(data.to, data.text, data.timestamp);
+            }
+            break;
+
+        case 'message_delivery_status':
+            if (data) {
+                if (data.success) {
+                    logToConsole(`Сообщение успешно доставлено (статус ${data.code})`, 'info');
+                } else {
+                    logToConsole(`Ошибка доставки сообщения (код ${data.code})`, 'error');
+                }
+            }
             break;
 
         case 'error':
@@ -197,7 +235,15 @@ function handleServerEvent(type, data) {
 /**
  * Handle incoming message from a contact
  */
-function handleIncomingMessage(fromEmail, text, timestamp) {
+function handleIncomingMessage(rawFrom, text, timestamp) {
+    if (!rawFrom) return;
+    const fromEmail = rawFrom.toLowerCase().trim();
+
+    if (fromEmail.includes('admin@mrim.su')) {
+        console.log("TEST MESSAGE FROM ADMIN RECEIVED");
+        logToConsole("TEST MESSAGE FROM ADMIN RECEIVED", 'info');
+    }
+
     if (!state.messages[fromEmail]) {
         state.messages[fromEmail] = [];
     }
@@ -209,18 +255,18 @@ function handleIncomingMessage(fromEmail, text, timestamp) {
         isMe: false
     });
 
+    if (!state.contacts[fromEmail]) {
+        state.contacts[fromEmail] = {
+            email: fromEmail,
+            nickname: fromEmail,
+            status: 1,
+            unread: 0
+        };
+    }
+
     if (state.activeContact === fromEmail) {
         renderChatHistory();
     } else {
-        // Increment unread counter if chat is not open
-        if (!state.contacts[fromEmail]) {
-            state.contacts[fromEmail] = {
-                email: fromEmail,
-                nickname: fromEmail,
-                status: 1,
-                unread: 0
-            };
-        }
         state.contacts[fromEmail].unread = (state.contacts[fromEmail].unread || 0) + 1;
         renderContacts();
     }
@@ -229,7 +275,10 @@ function handleIncomingMessage(fromEmail, text, timestamp) {
 /**
  * Handle outgoing message echo
  */
-function handleOutgoingMessage(toEmail, text, timestamp) {
+function handleOutgoingMessage(rawTo, text, timestamp) {
+    if (!rawTo) return;
+    const toEmail = rawTo.toLowerCase().trim();
+
     if (!state.messages[toEmail]) {
         state.messages[toEmail] = [];
     }
@@ -310,8 +359,9 @@ function renderContacts() {
 /**
  * Select active contact for chatting
  */
-function selectContact(email) {
-    if (!email) return;
+function selectContact(rawEmail) {
+    if (!rawEmail) return;
+    const email = rawEmail.toLowerCase().trim();
     state.activeContact = email;
 
     if (!state.contacts[email]) {
@@ -388,8 +438,9 @@ function formatTime(ts) {
  * Convert numeric MRIM status to CSS class
  */
 function getStatusClass(status) {
-    if (status === 1) return 'status-online';
-    if (status === 2) return 'status-away';
+    const st = Number(status) || 0;
+    if (st === 1 || (st & 0x00000001)) return 'status-online';
+    if (st === 2 || (st & 0x00000002)) return 'status-away';
     return 'status-offline';
 }
 

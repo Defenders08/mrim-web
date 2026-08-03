@@ -185,36 +185,31 @@ class MRIMClient
      * Send an instant message to a contact
      */
     public function sendMessage(string $toEmail, string $text): bool
-{
-    if ($this->state !== 'authenticated' || !$this->socket) {
-        return false;
+    {
+        if ($this->state !== 'authenticated' || !$this->socket) {
+            return false;
+        }
+
+        $this->log("Sending message to $toEmail: $text");
+
+        // MRIM message flags: MESSAGE_FLAG_OFFLINE (0x1) + MESSAGE_FLAG_UTF16 (0x200000)
+        $flags = MRIMProtocol::MESSAGE_FLAG_OFFLINE | MRIMProtocol::MESSAGE_FLAG_UTF16;
+        $msgId = 0;
+
+        $payload = MRIMProtocol::encodeUint32($flags) .
+                   MRIMProtocol::encodeUint32($msgId) .
+                   MRIMProtocol::encodeLPS($toEmail) .
+                   MRIMProtocol::encodeLPSUtf16($text) .
+                   MRIMProtocol::encodeLPS('');
+
+        $flagsHex = "0x" . dechex($flags);
+        $msgIdHex = "0x" . dechex($msgId);
+        $rawHex = bin2hex($payload);
+
+        $this->log("SEND MESSAGE PAYLOAD:\nMESSAGE FLAGS HEX: $flagsHex\nMSG_ID HEX: $msgIdHex\nrecipient: $toEmail\ntext: $text\nRAW_HEX: $rawHex", 'info');
+
+        return $this->sendPacket(MRIMProtocol::MRIM_CS_MESSAGE, $payload);
     }
-
-    $this->log("Sending message to $toEmail: $text");
-
-
-    $flags = 0;
-
-
-    $payload =
-        MRIMProtocol::encodeUint32($flags) .
-        MRIMProtocol::encodeLPS($toEmail) .
-        MRIMProtocol::encodeLPSUtf16($text) .
-        MRIMProtocol::encodeLPS('') .
-        MRIMProtocol::encodeUint32(0);
-
-
-    $this->log(
-        "MESSAGE PAYLOAD HEX=" . bin2hex($payload),
-        'debug'
-    );
-
-
-    return $this->sendPacket(
-        MRIMProtocol::MRIM_CS_MESSAGE,
-        $payload
-    );
-}
 
     /**
      * Send ping packet to keep TCP connection alive
@@ -347,20 +342,24 @@ class MRIMClient
     /**
      * Handle parsed MRIM command packets
      */
+    /**
+     * Get authenticated email address
+     */
+    public function getEmail(): string
+    {
+        return $this->email;
+    }
+
+    /**
+     * Handle parsed MRIM command packets
+     */
     private function parsePacket(array $header, string $data): void
     {
         $cmd = $header['msg'];
         $cmdName = MRIMProtocol::getCommandName($cmd);
-        $this->log("Received packet: $cmdName (dlen=" . strlen($data) . ")", 'debug');
-
-        $this->log(
-    "DEBUG: cmd=0x" . dechex($cmd) .
-    " MESSAGE_RECV=0x" . dechex(MRIMProtocol::MRIM_CS_MESSAGE_RECV) .
-    " MESSAGE_RECV2=0x" . dechex(MRIMProtocol::MRIM_CS_MESSAGE_RECV2) .
-    " MESSAGE_ACK=0x" . dechex(MRIMProtocol::MRIM_CS_MESSAGE_ACK)
-);
-
-    $this->log("Received packet: $cmdName (dlen=" . strlen($data) . ")", 'debug');
+        $dlen = strlen($data);
+        $rawHex = bin2hex($data);
+        $this->log("Received packet: $cmdName (cmd=0x" . dechex($cmd) . ", dlen=$dlen) RAW_HEX=$rawHex", 'debug');
 
         switch ($cmd) {
             case MRIMProtocol::MRIM_CS_HELLO_ACK:
@@ -398,87 +397,48 @@ class MRIMClient
                 break;
 
             case MRIMProtocol::MRIM_CS_USER_STATUS:
+            case MRIMProtocol::MRIM_CS_USER_INFO:
+            case 0x1022: // MRIM_CS_STATUS_CHANGED / MRIM_CS_CONTACT_STATUS
                 $this->parseUserStatus($data);
                 break;
 
-                case MRIMProtocol::MRIM_CS_USER_INFO:
+            case MRIMProtocol::MRIM_CS_MESSAGE_RECV2:
+                $this->handleIncomingMessage($data);
+                break;
 
-    $this->log("USER INFO RECEIVED", 'debug');
-    $this->log("USER INFO RAW=" . bin2hex($data), 'debug');
-
-    break;
-
-
-case MRIMProtocol::MRIM_CS_MESSAGE_RECV2:
-
-    $this->log("!!! MESSAGE_RECV2 HANDLER !!!", 'debug');
-
-    $this->handleIncomingMessage($data);
-
-    $this->sendMessageAck($data);
-
-    break;
-    case MRIMProtocol::MRIM_CS_MESSAGE_RECV3:
-
-    $this->log("!!! MESSAGE_RECV3 HANDLER !!!", 'debug');
-
-    $this->handleIncomingMessage1063($data);
-
-    break;
+            case MRIMProtocol::MRIM_CS_MESSAGE_RECV3:
+                $this->handleIncomingMessage1063($data);
+                break;
 
             case MRIMProtocol::MRIM_CS_MESSAGE_RECV:
-    $this->parseIncomingMessage($data);
-    $this->sendMessageAck($data);
-    break;
+            case MRIMProtocol::MRIM_CS_MESSAGE:
+                $this->parseIncomingMessage($data);
+                break;
 
-case MRIMProtocol::MRIM_CS_MESSAGE_ACK:
-
-    $this->log("MESSAGE ACK received", 'debug');
-
-    $this->emit('message_sent', [
-        'status' => 'delivered'
-    ]);
-
-    break;
+            case MRIMProtocol::MRIM_CS_MESSAGE_ACK:
+                $this->parseMessageAck($data);
+                break;
 
             case MRIMProtocol::MRIM_CS_MESSAGE_STATUS:
-
-    $this->log(
-        "MESSAGE STATUS RAW=" . bin2hex($data),
-        'debug'
-    );
-
-    if (strlen($data) >= 4) {
-        $status = MRIMProtocol::decodeUint32($data, 0);
-
-        $this->log(
-            "MESSAGE STATUS = " . $status,
-            'debug'
-        );
-    }
-
-    break;
-
-    $this->log(
-        "MESSAGE STATUS = ".$status,
-        'debug'
-    );
-
-    switch ($status) {
-
-        case 0:
-            $this->log("MESSAGE SEND FAILED", 'error');
-            break;
-
-        case 1:
-            $this->log("MESSAGE SENT", 'debug');
-            break;
-
-        default:
-            $this->log("UNKNOWN MESSAGE STATUS ".$status, 'debug');
-    }
-
-    break;
+                if (strlen($data) >= 4) {
+                    $status = MRIMProtocol::decodeUint32($data, 0);
+                    $this->log("MESSAGE STATUS = " . $status . " (0x" . dechex($status) . ")", 'debug');
+                    // In MRIM protocol:
+                    // 0x0000 = MESSAGE_DELIVERED (0 = Success direct)
+                    // 0x0001 = MESSAGE_REJECTED (1 = Failed/Rejected)
+                    // 0x0002 = MESSAGE_USER_OFFLINE (2 = Success stored offline)
+                    // 0x0003 = MESSAGE_NOT_FOUND
+                    // Bit flags (e.g. 0x8000) may also be present on status word
+                    $rawStatus = $status & 0xFFFF;
+                    if ($rawStatus === 1 || $rawStatus === 3) {
+                        $this->log("Сообщение НЕ доставлено (код ошибки $status)", 'error');
+                        $this->emit('message_delivery_status', ['success' => false, 'code' => $status]);
+                    } else {
+                        $this->log("Сообщение успешно доставлено (код $status)", 'info');
+                        $this->emit('message_delivery_status', ['success' => true, 'code' => $status]);
+                    }
+                }
+                break;
 
             case MRIMProtocol::MRIM_CS_LOGOUT:
                 $this->log("Server sent MRIM_CS_LOGOUT");
@@ -487,178 +447,167 @@ case MRIMProtocol::MRIM_CS_MESSAGE_ACK:
                 break;
 
             default:
-
-    if ($cmd == 0x1063) {
-        $this->log("!!! FOUND 1063 !!!");
-
-        $this->log(
-            "RAW=".bin2hex($data)
-        );
-
-        break;
-    }
-
-
-    $this->log(
-        "UNKNOWN PACKET CMD=0x" . dechex($cmd),
-        'debug'
-    );
-
-    $this->log(
-        "UNKNOWN RAW=" . bin2hex($data),
-        'debug'
-    );
-
-    break;
-
-    $this->log(
-        "UNKNOWN RAW=" . bin2hex($data),
-        'debug'
-    );
-
-    break;
+                $this->log("UNKNOWN PACKET CMD=0x" . dechex($cmd) . " RAW=" . bin2hex(substr($data, 0, 64)), 'debug');
+                break;
         }
     }
 
     /**
-     * Parse MRIM_CS_CONTACT_LIST2 payload
+     * Parse MRIM_CS_CONTACT_LIST2 payload (0x1037)
      */
     private function parseContactList(string $data): void
-{
-    $offset = 0;
+    {
+        $offset = 0;
+        $dataLen = strlen($data);
 
-    // status
-    $status = MRIMProtocol::decodeUint32($data, $offset);
-    $offset += 4;
+        if ($dataLen < 8) {
+            $this->log("Invalid CONTACT_LIST2 length: $dataLen", 'error');
+            return;
+        }
 
-    // groups count
-    $groupsCount = 0;
+        // status (uint32)
+        $status = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
-    $this->log(
-        "GROUPS COUNT: " . $groupsCount,
-        'debug'
-    );
+        // groups count (uint32)
+        $groupsCount = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
-    // groups mask
-    $maskLen = MRIMProtocol::decodeUint32($data, $offset);
-$offset += 4;
+        // groups mask (LPS string)
+        $groupsMaskRes = MRIMProtocol::decodeLPS($data, $offset);
+        $offset = $groupsMaskRes['next_offset'];
+        $groupsMask = $groupsMaskRes['value'];
 
-$groupsMask = substr($data, $offset, $maskLen);
-$offset += $maskLen;
-// пропускаем служебные данные перед первым контактом
-$offset += 4;
+        // contacts mask (LPS string)
+        $contactsMaskRes = MRIMProtocol::decodeLPS($data, $offset);
+        $offset = $contactsMaskRes['next_offset'];
+        $contactsMask = $contactsMaskRes['value'];
 
-// В MRIM_CS_CONTACT_LIST2 нет количества контактов
-$contactsCount = 1000;
+        $this->log("CONTACT_LIST2 received -> status=$status, groupsCount=$groupsCount, groupsMask='$groupsMask', contactsMask='$contactsMask'", 'debug');
 
-$this->log(
-    "CONTACT COUNT MODE: AUTO",
-    'debug'
-);
+        $groups = [];
 
-$this->log(
-    "REAL CONTACT OFFSET=".$offset,
-    'debug'
-);
+        // Parse group records
+        for ($g = 0; $g < $groupsCount && $offset < $dataLen; $g++) {
+            $gFlags = 0;
+            $gName = 'Group ' . ($g + 1);
 
-$this->log(
-    "GROUP MASK LEN: ".$maskLen,
-    'debug'
-);
+            if (!empty($groupsMask)) {
+                $maskChars = str_split($groupsMask);
+                foreach ($maskChars as $ch) {
+                    if ($offset >= $dataLen) break;
+                    if ($ch === 'u') {
+                        $val = MRIMProtocol::decodeUint32($data, $offset);
+                        $offset += 4;
+                        if ($gFlags === 0) $gFlags = $val;
+                    } elseif ($ch === 's' || $ch === 'S') {
+                        $strRes = MRIMProtocol::decodeLPS($data, $offset, ($ch === 'S'));
+                        $offset = $strRes['next_offset'];
+                        if ($strRes['value'] !== '') $gName = $strRes['value'];
+                    }
+                }
+            } else {
+                $gFlags = MRIMProtocol::decodeUint32($data, $offset);
+                $offset += 4;
+                $gNameRes = MRIMProtocol::decodeLPS($data, $offset);
+                $offset = $gNameRes['next_offset'];
+                $gName = $gNameRes['value'];
+            }
 
-$this->log(
-    "GROUP MASK HEX: ".bin2hex($groupsMask),
-    'debug'
-);
-
-$groups = [];
-
-// Ищем начало первого контакта.
-// После mask могут идти служебные байты.
-
-
-
-
-$this->log(
-    "CONTACTS REAL OFFSET AFTER SEARCH=".$offset,
-    'debug'
-);
-
-$this->log(
-    "NEXT BYTES: " . bin2hex(substr($data, $offset, 100)),
-    'debug'
-);
-
-
-
-$this->log(
-    "NEXT BYTES: " . bin2hex(substr($data, $offset, 100)),
-    'debug'
-);
-
-
-
-
-
-
-        $this->log("CONTACT LIST OFFSET AFTER HEADER: " . $offset, 'debug');
-$this->log("NEXT BYTES: " . bin2hex(substr($data, $offset, 100)), 'debug');
-
-        $this->log("Parsing contact list, groups: $groupsCount");
-        $this->log("CONTACT LIST RECEIVED", 'debug');
+            $groups[$g + 1] = $gName;
+        }
 
         $contacts = [];
-        $i = 0;
+        $contactIndex = 0;
 
-while ($offset + 4 <= strlen($data)) {
+        // Parse contact records until data end
+        while ($offset + 4 <= $dataLen) {
+            $uVals = [];
+            $sVals = [];
 
-    $this->log("CONTACT OFFSET=".$offset, 'debug');
+            if (!empty($contactsMask)) {
+                $maskChars = str_split($contactsMask);
+                foreach ($maskChars as $ch) {
+                    if ($offset >= $dataLen) break;
+                    if ($ch === 'u') {
+                        $uVals[] = MRIMProtocol::decodeUint32($data, $offset);
+                        $offset += 4;
+                    } elseif ($ch === 's' || $ch === 'S') {
+                        $strRes = MRIMProtocol::decodeLPS($data, $offset, ($ch === 'S'));
+                        $offset = $strRes['next_offset'];
+                        $sVals[] = $strRes['value'];
+                    }
+                }
+            } else {
+                $uVals[] = MRIMProtocol::decodeUint32($data, $offset);
+                $offset += 4;
+                $uVals[] = MRIMProtocol::decodeUint32($data, $offset);
+                $offset += 4;
 
+                $emailRes = MRIMProtocol::decodeLPS($data, $offset);
+                $offset = $emailRes['next_offset'];
+                $sVals[] = $emailRes['value'];
 
-    // group id
-    $groupId = MRIMProtocol::decodeUint32($data, $offset);
-    $offset += 4;
+                $nickRes = MRIMProtocol::decodeLPSUtf16($data, $offset);
+                $offset = $nickRes['next_offset'];
+                $sVals[] = $nickRes['value'];
+            }
 
+            $flags    = $uVals[0] ?? 0;
+            $groupId  = $uVals[1] ?? 0;
 
-    // email
-    $email = MRIMProtocol::decodeLPS($data, $offset);
-    $offset = $email['next_offset'];
+            // In MRIM protocol contacts_mask:
+            // Field u#0 = flags
+            // Field u#1 = group_id
+            // Field u#2 = user_status / server_status
+            $statusVal = 0;
+            if (count($uVals) >= 3) {
+                $statusVal = $uVals[2];
+                if ($statusVal === 0 && isset($uVals[3])) {
+                    $statusVal = $uVals[3];
+                }
+            }
 
+            $emailStr  = $sVals[0] ?? '';
+            $nickStr   = $sVals[1] ?? '';
+            $phonesStr = $sVals[2] ?? '';
 
-    if ($email['value'] === '') {
-        break;
-    }
+            $emailClean = strtolower(trim($emailStr));
+            if ($emailClean === '') {
+                continue;
+            }
 
+            // Skip removed contacts (CONTACT_FLAG_REMOVED = 0x0001) or group markers (CONTACT_FLAG_GROUP = 0x0002)
+            if (($flags & 0x0001) !== 0 || ($flags & 0x0002) !== 0) {
+                continue;
+            }
 
-    // nickname UTF-16
-    $nickname = MRIMProtocol::decodeLPSUtf16($data, $offset);
-    $offset = $nickname['next_offset'];
+            $nickClean = trim($nickStr);
+            if ($nickClean === '') {
+                $nickClean = $emailClean;
+            }
 
+            $isOnlineStr = ($statusVal > 0) ? "YES" : "NO";
+            $contactIndex++;
 
-    $emailStr = trim($email['value']);
-    $nick = trim($nickname['value']);
+            // Output structured debug info required by specification:
+            $this->log("CONTACT #$contactIndex -> UID: $emailClean | EMAIL: $emailClean | NICK: $nickClean | STATUS: $statusVal (0x" . dechex($statusVal) . ") | FLAGS: $flags (0x" . dechex($flags) . ") | ONLINE: $isOnlineStr", 'info');
 
-
-    $this->log(
-        "CONTACT: ".$emailStr." / ".$nick,
-        'debug'
-    );
-
-
-    $contacts[$emailStr] = [
-        'email' => $emailStr,
-        'nickname' => $nick ?: $emailStr,
-        'status' => 0,
-        'status_title' => '',
-        'status_desc' => '',
-        'group_id' => $groupId,
-        'unread' => 0,
-    ];
-
-    $i++;
-}
+            $contacts[$emailClean] = [
+                'email'        => $emailClean,
+                'nickname'     => $nickClean,
+                'status'       => $statusVal,
+                'status_title' => '',
+                'status_desc'  => '',
+                'group_id'     => $groupId,
+                'group_name'   => $groups[$groupId] ?? 'General',
+                'phones'       => $phonesStr,
+                'unread'       => 0,
+            ];
+        }
 
         $this->contacts = $contacts;
+        $this->log("Loaded contact list with " . count($this->contacts) . " active contacts", 'info');
         $this->emit('contact_list', ['contacts' => array_values($this->contacts)]);
     }
 
@@ -666,300 +615,339 @@ while ($offset + 4 <= strlen($data)) {
      * Parse MRIM_CS_USER_STATUS payload
      */
     private function parseUserStatus(string $data): void
-{
-    $offset = 0;
+    {
+        $offset = 0;
+        $dataLen = strlen($data);
 
-    $statusVal = MRIMProtocol::decodeUint32($data, $offset);
-    $offset += 4;
+        if ($dataLen < 8) {
+            return;
+        }
 
-    $userEmail = MRIMProtocol::decodeLPS($data, $offset);
-    $offset = $userEmail['next_offset'];
+        $statusVal = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
-    $statusTitle = MRIMProtocol::decodeLPS($data, $offset);
-    $offset = $statusTitle['next_offset'];
+        $userEmailRes = MRIMProtocol::decodeLPS($data, $offset);
+        $offset = $userEmailRes['next_offset'];
 
-    $statusDesc = MRIMProtocol::decodeLPS($data, $offset);
-    $offset = $statusDesc['next_offset'];
+        $statusTitleRes = MRIMProtocol::decodeLPS($data, $offset);
+        $offset = $statusTitleRes['next_offset'];
 
+        $statusDescRes = MRIMProtocol::decodeLPS($data, $offset);
+        $offset = $statusDescRes['next_offset'];
 
-    $email = trim($userEmail['value']);
+        $emailClean = strtolower(trim($userEmailRes['value']));
+        if ($emailClean === '') {
+            return;
+        }
 
+        if (!isset($this->contacts[$emailClean])) {
+            $this->contacts[$emailClean] = [
+                'email'        => $emailClean,
+                'nickname'     => $emailClean,
+                'status'       => $statusVal,
+                'status_title' => $statusTitleRes['value'],
+                'status_desc'  => $statusDescRes['value'],
+                'group_id'     => 0,
+                'group_name'   => 'General',
+                'phones'       => '',
+                'unread'       => 0,
+            ];
+        } else {
+            $this->contacts[$emailClean]['status'] = $statusVal;
+            $this->contacts[$emailClean]['status_title'] = $statusTitleRes['value'];
+            $this->contacts[$emailClean]['status_desc'] = $statusDescRes['value'];
+        }
 
-    $this->log(
-        "Status update: $email status=$statusVal title=".$statusTitle['value'],
-        'debug'
-    );
+        $isOnlineStr = ($statusVal > 0) ? "YES" : "NO";
+        $this->log("STATUS UPDATE -> EMAIL: $emailClean | STATUS: $statusVal (0x" . dechex($statusVal) . ") | ONLINE: $isOnlineStr", 'info');
 
-
-    if (isset($this->contacts[$email])) {
-
-        $this->contacts[$email]['status'] = $statusVal;
-        $this->contacts[$email]['status_title'] = $statusTitle['value'];
-        $this->contacts[$email]['status_desc'] = $statusDesc['value'];
-
+        $this->emit('user_status', [
+            'email'        => $emailClean,
+            'status'       => $statusVal,
+            'status_title' => $statusTitleRes['value'],
+            'status_desc'  => $statusDescRes['value'],
+        ]);
     }
-
-
-    $this->emit('user_status', [
-        'email' => $email,
-        'status' => $statusVal,
-        'status_title' => $statusTitle['value'],
-        'status_desc' => $statusDesc['value'],
-    ]);
-}
 
     /**
-     * Parse incoming message packet and send delivery ACK
+     * Parse incoming MRIM_CS_MESSAGE_RECV packet (0x1011)
      */
     private function parseIncomingMessage(string $data): void
-{
-    $this->log("PARSER VERSION TEST", 'debug');
-    $this->log("=== NEW PARSER ===", 'debug');
-    $this->log("MESSAGE RAW: " . bin2hex($data), 'debug');
+    {
+        $offset = 0;
 
-    $offset = 0;
+        $msgId = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
-    $msgId = MRIMProtocol::decodeUint32($data, $offset);
-    $offset += 4;
+        $flags = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
-    $flags = MRIMProtocol::decodeUint32($data, $offset);
-    $offset += 4;
+        $fromRes = MRIMProtocol::decodeLPS($data, $offset);
+        $offset = $fromRes['next_offset'];
+        $fromEmail = strtolower(trim($fromRes['value']));
 
+        $isUtf16 = ($flags & MRIMProtocol::MESSAGE_FLAG_UTF16) !== 0;
 
-    // Отправитель
-    $from = MRIMProtocol::decodeLPS($data, $offset);
-    $offset = $from['next_offset'];
+        $textRes = MRIMProtocol::decodeLPS($data, $offset, $isUtf16);
+        $offset = $textRes['next_offset'];
+        $msgText = trim($textRes['value']);
 
+        if ($msgText === '' && !$isUtf16) {
+            $textRes2 = MRIMProtocol::decodeLPS($data, $offset, true);
+            $msgText = trim($textRes2['value']);
+        }
 
-    // Длина UTF-16 текста
-$textLen = MRIMProtocol::decodeUint32($data, $offset);
-$offset += 4;
+        if ($msgText === '') {
+            return;
+        }
 
-$this->log("TEXT LEN = ".$textLen, 'debug');
+        $this->log("PARSED INCOMING MESSAGE_RECV (0x1011) from $fromEmail (id=$msgId): $msgText", 'info');
 
-$rawText = substr($data, $offset, $textLen);
+        if (strpos($fromEmail, 'admin@mrim.su') !== false) {
+            $this->log("TEST MESSAGE FROM ADMIN RECEIVED", 'info');
+        }
 
-$this->log("TEXT HEX = ".bin2hex($rawText), 'debug');
+        $this->emit('message', [
+            'from'      => $fromEmail,
+            'text'      => $msgText,
+            'timestamp' => time(),
+        ]);
 
-
-// UTF-16LE -> UTF-8
-if (function_exists('mb_convert_encoding')) {
-
-    $msgText = mb_convert_encoding(
-        $rawText,
-        'UTF-8',
-        'UTF-16LE'
-    );
-
-} elseif (function_exists('iconv')) {
-
-    $msgText = iconv(
-        'UTF-16LE',
-        'UTF-8//IGNORE',
-        $rawText
-    );
-
-} else {
-
-    $msgText = $rawText;
-}
-
-
-    $msgText = trim($msgText);
-
-if ($msgText === '') {
-    $this->log("Ignoring empty message", 'debug');
-    return;
-}
-
-$this->log("DEBUG TEXT=[" . $msgText . "] LEN=" . strlen($msgText), 'debug');
-
-$fromEmail = trim($from['value']);
-
-$msgText = trim($msgText);
-
-if ($msgText === '') {
-    $this->log("Ignoring empty message", 'debug');
-    return;
-}
-
-
-    $this->log(
-        "New message from $fromEmail (id=$msgId): " . $msgText
-    );
-
-
-    $this->emit('message', [
-        'from' => $fromEmail,
-        'text' => $msgText,
-        'timestamp' => time(),
-    ]);
-}
-private function sendMessageAck(string $data): void
-{
-
-    $offset = 0;
-
-    $msgId = MRIMProtocol::decodeUint32($data, $offset);
-
-    $payload =
-        MRIMProtocol::encodeUint32($msgId);
-
-    $this->sendPacket(
-        MRIMProtocol::MRIM_CS_MESSAGE_ACK,
-        $payload
-    );
-
-    $this->log(
-        "MESSAGE ACK sent for ID ".$msgId,
-        'debug'
-    );
-
-        $this->log(
-    "SEND HEX=" . bin2hex($payload),
-    'debug'
-);
-}
-private function handleIncomingMessage(string $data): void
-{
-    $this->log("!!! MESSAGE_RECV2 HANDLER !!!");
-
-    // первые 12 байт служебные
-    $body = substr($data, 12);
-
-    // переводим в строку
-    $text = $body;
-
-    // ищем заголовки
-    $parts = explode("\r\n\r\n", $text, 2);
-
-    if (count($parts) !== 2) {
-        $this->log("Invalid message format", 'error');
-        return;
+        $this->sendMessageAck($msgId, $fromEmail);
     }
 
-    $headers = $parts[0];
-    $payload = trim($parts[1]);
-
-
-    // получаем отправителя
-    preg_match(
-        '/From:\s*(.+)/',
-        $headers,
-        $fromMatch
-    );
-
-    $from = $fromMatch[1] ?? 'unknown';
-
-
-    // декодируем base64
-    $decoded = base64_decode($payload);
-
-
-    if ($decoded === false) {
-        $this->log("BASE64 decode failed", 'error');
-        return;
+    /**
+     * Send message delivery acknowledgment (MRIM_CS_MESSAGE_ACK = 0x1009)
+     */
+    private function sendMessageAck(int $msgId, string $fromEmail = ''): void
+    {
+        $payload = MRIMProtocol::encodeUint32($msgId) . MRIMProtocol::encodeLPS($fromEmail);
+        $this->sendPacket(MRIMProtocol::MRIM_CS_MESSAGE_ACK, $payload);
+        $this->log("Sent delivery ACK for message ID $msgId to $fromEmail", 'debug');
     }
 
+    /**
+     * Handle MRIM_CS_MESSAGE_RECV2 (0x101D)
+     */
+    private function handleIncomingMessage(string $data): void
+    {
+        $offset = 0;
+        $dataLen = strlen($data);
 
-    // UTF-16LE -> UTF-8
-    if (function_exists('mb_convert_encoding')) {
+        if ($dataLen < 12) {
+            $this->log("Invalid MESSAGE_RECV2 length: $dataLen", 'error');
+            return;
+        }
 
-        $message = mb_convert_encoding(
-            $decoded,
-            'UTF-8',
-            'UTF-16LE'
-        );
+        // Field 1: msg_id (uint32)
+        $msgId = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
-    } else {
+        // Field 2: flags (uint32)
+        $flags = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
-        $message = iconv(
-            'UTF-16LE',
-            'UTF-8//IGNORE',
-            $decoded
-        );
+        // Field 3: from (LPS)
+        $fromRes = MRIMProtocol::decodeLPS($data, $offset);
+        $offset = $fromRes['next_offset'];
+        $fromEmail = strtolower(trim($fromRes['value']));
 
+        // Field 4: text (LPS)
+        $isUtf16 = ($flags & MRIMProtocol::MESSAGE_FLAG_UTF16) !== 0;
+        $startTextOffset = $offset;
+        $textRes = MRIMProtocol::decodeLPS($data, $offset, $isUtf16);
+        $offset = $textRes['next_offset'];
+        $msgText = trim($textRes['value']);
+
+        // Fallback: If text decoding returned empty string, attempt opposite decoding
+        if ($msgText === '') {
+            $fallbackRes = MRIMProtocol::decodeLPS($data, $startTextOffset, !$isUtf16);
+            if (trim($fallbackRes['value']) !== '') {
+                $msgText = trim($fallbackRes['value']);
+            }
+        }
+
+        // Field 5: rtf (LPS)
+        $rtfText = '';
+        if ($offset < $dataLen) {
+            $rtfRes = MRIMProtocol::decodeLPS($data, $offset);
+            $offset = $rtfRes['next_offset'];
+            $rtfText = $rtfRes['value'];
+        }
+
+        // Check for MIME encoded gateway or email body if present
+        if (strpos($data, "From:") !== false && strpos($data, "\r\n\r\n") !== false) {
+            $parts = explode("\r\n\r\n", $data, 2);
+            if (count($parts) === 2) {
+                if (preg_match('/From:\s*([^\r\n]+)/i', $parts[0], $match)) {
+                    $mimeFrom = strtolower(trim($match[1]));
+                    if (strpos($mimeFrom, '@') !== false) {
+                        $fromEmail = $mimeFrom;
+                    }
+                }
+                $rawBody = trim($parts[1]);
+                $decoded = base64_decode($rawBody);
+                if ($decoded !== false && strlen($decoded) > 0) {
+                    if (function_exists('mb_convert_encoding')) {
+                        $mimeText = mb_convert_encoding($decoded, 'UTF-8', 'UTF-16LE');
+                    } elseif (function_exists('iconv')) {
+                        $mimeText = iconv('UTF-16LE', 'UTF-8//IGNORE', $decoded) ?: $decoded;
+                    } else {
+                        $mimeText = $decoded;
+                    }
+                    $mimeText = trim($mimeText, "\x00 ");
+                    if ($mimeText !== '') {
+                        $msgText = $mimeText;
+                    }
+                }
+            }
+        }
+
+        $flagsHex = "0x" . dechex($flags);
+        $rawHex = bin2hex($data);
+
+        $this->log("MESSAGE_RECV2 DEBUG:\nmsg_id: $msgId\nflags: $flagsHex\nfrom: $fromEmail\ntext: $msgText\nrtf: $rtfText\nRAW_HEX: $rawHex", 'info');
+
+        if (strpos($fromEmail, 'admin@mrim.su') !== false) {
+            $this->log("TEST MESSAGE FROM ADMIN RECEIVED", 'info');
+        }
+
+        if ($fromEmail !== '' && $msgText !== '') {
+            $this->emit('message', [
+                'from'      => $fromEmail,
+                'text'      => $msgText,
+                'timestamp' => time(),
+            ]);
+        }
+
+        $this->sendMessageAck($msgId, $fromEmail);
     }
 
+    /**
+     * Handle MRIM_CS_MESSAGE_RECV3 (0x1063)
+     */
+    private function handleIncomingMessage1063(string $data): void
+    {
+        $offset = 0;
 
-    $this->log(
-        "FROM: ".$from
-    );
+        $type = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
-    $this->log(
-        "TEXT: ".$message
-    );
+        $fromRes = MRIMProtocol::decodeLPS($data, $offset);
+        $offset = $fromRes['next_offset'];
+        $fromEmail = strtolower(trim($fromRes['value']));
 
+        if ($offset + 16 <= strlen($data)) {
+            $offset += 16;
+        }
 
-    // отправляем в websocket
-    $this->emit(
-        'message',
-        [
-            'from'=>$from,
-            'text'=>$message
-        ]
-    );
-}
-private function handleIncomingMessage1063(string $data): void
-{
-    $this->log("MESSAGE 1063 RAW=".bin2hex($data),'debug');
+        $textRaw = substr($data, $offset);
+        if (function_exists('mb_convert_encoding')) {
+            $msgText = mb_convert_encoding($textRaw, 'UTF-8', 'UTF-16LE');
+        } elseif (function_exists('iconv')) {
+            $msgText = iconv('UTF-16LE', 'UTF-8//IGNORE', $textRaw) ?: $textRaw;
+        } else {
+            $msgText = $textRaw;
+        }
 
-    $offset = 0;
+        $msgText = trim($msgText, "\x00 ");
 
+        if ($fromEmail !== '' && $msgText !== '') {
+            $this->log("PARSED INCOMING MESSAGE_RECV3 (0x1063) from $fromEmail: $msgText", 'info');
 
-    // type
-    $type = MRIMProtocol::decodeUint32($data,$offset);
-    $offset +=4;
+            if (strpos($fromEmail, 'admin@mrim.su') !== false) {
+                $this->log("TEST MESSAGE FROM ADMIN RECEIVED", 'info');
+            }
 
-
-    // sender
-    $from = MRIMProtocol::decodeLPS($data,$offset);
-    $offset = $from['next_offset'];
-
-
-    // пропускаем служебные поля
-    if ($offset + 20 > strlen($data)) {
-        return;
+            $this->emit('message', [
+                'from'      => $fromEmail,
+                'text'      => $msgText,
+                'timestamp' => time(),
+            ]);
+        }
     }
 
+    /**
+     * Parse MRIM_CS_MESSAGE_ACK packet (0x1009)
+     */
+    private function parseMessageAck(string $data): void
+    {
+        $offset = 0;
+        $dataLen = strlen($data);
 
-    $offset += 16;
+        if ($dataLen < 8) {
+            $this->log("MESSAGE ACK received from server", 'debug');
+            $this->emit('message_ack', ['status' => 'delivered']);
+            return;
+        }
 
+        // Field 1: msg_id (uint32)
+        $msgId = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
-    $textRaw = substr($data,$offset);
+        // Field 2: flags (uint32)
+        $flags = MRIMProtocol::decodeUint32($data, $offset);
+        $offset += 4;
 
+        $fromEmail = '';
+        $msgText = '';
+        $rtfText = '';
 
-    // UTF16LE
-    $text = mb_convert_encoding(
-        $textRaw,
-        'UTF-8',
-        'UTF-16LE'
-    );
+        if ($offset < $dataLen) {
+            // Field 3: from (LPS)
+            $fromRes = MRIMProtocol::decodeLPS($data, $offset);
+            $offset = $fromRes['next_offset'];
+            $fromEmail = strtolower(trim($fromRes['value']));
+        }
 
+        if ($offset < $dataLen) {
+            // Field 4: text (LPS)
+            $isUtf16 = ($flags & MRIMProtocol::MESSAGE_FLAG_UTF16) !== 0;
+            $startTextOffset = $offset;
+            $textRes = MRIMProtocol::decodeLPS($data, $offset, $isUtf16);
+            $offset = $textRes['next_offset'];
+            $msgText = trim($textRes['value']);
 
-    $text = trim($text);
+            if ($msgText === '') {
+                $fallbackRes = MRIMProtocol::decodeLPS($data, $startTextOffset, !$isUtf16);
+                if (trim($fallbackRes['value']) !== '') {
+                    $msgText = trim($fallbackRes['value']);
+                }
+            }
+        }
 
+        if ($offset < $dataLen) {
+            // Field 5: rtf (LPS)
+            $rtfRes = MRIMProtocol::decodeLPS($data, $offset);
+            $offset = $rtfRes['next_offset'];
+            $rtfText = $rtfRes['value'];
+        }
 
-    $this->log(
-        "MESSAGE1063 FROM=".$from['value']
-    );
+        $flagsHex = "0x" . dechex($flags);
+        $rawHex = bin2hex($data);
 
-    $this->log(
-        "MESSAGE1063 TEXT=".$text
-    );
+        $this->log("MESSAGE_ACK DEBUG:\nmsg_id: $msgId\nflags: $flagsHex\nfrom: $fromEmail\ntext: $msgText\nRAW_HEX: $rawHex", 'info');
 
+        $this->emit('message_ack', [
+            'status' => 'delivered',
+            'msg_id' => $msgId,
+            'flags'  => $flags,
+            'from'   => $fromEmail,
+            'text'   => $msgText,
+        ]);
 
-    if ($text !== '') {
+        if ($fromEmail !== '' && $msgText !== '') {
+            $this->log("PARSED MESSAGE FROM MESSAGE_ACK (0x1009) from $fromEmail: $msgText", 'info');
 
-        $this->emit(
-            'message',
-            [
-                'from'=>$from['value'],
-                'text'=>$text,
-                'timestamp'=>time()
-            ]
-        );
+            if (strpos($fromEmail, 'admin@mrim.su') !== false) {
+                $this->log("TEST MESSAGE FROM ADMIN RECEIVED", 'info');
+            }
 
+            $this->emit('message', [
+                'from'      => $fromEmail,
+                'text'      => $msgText,
+                'timestamp' => time(),
+            ]);
+        }
     }
-}
 }
