@@ -374,6 +374,24 @@ body {
     flex-shrink: 0;
 }
 
+.active-chat-avatar {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    border: 1px solid #7a8a9a;
+}
+
+.msg-avatar {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    object-fit: cover;
+    border: 1px solid #8a9aa8;
+    vertical-align: middle;
+    margin-right: 5px;
+    display: inline-block;
+}
+
 .contact-status-dot {
     width: 9px;
     height: 9px;

@@ -2,8 +2,9 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mail.Ru Агент (MRIM Web Client)</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
@@ -72,14 +73,8 @@
         </form>
     </div>
 
-    <!-- Mobile Workspace Tabs (visible on <=768px) -->
-    <div class="mobile-workspace-tabs" id="mobile-workspace-tabs">
-        <button type="button" class="mobile-tab-btn active" id="tab-btn-contacts">👥 Контакты <span id="mobile-contacts-badge"></span></button>
-        <button type="button" class="mobile-tab-btn" id="tab-btn-chat">💬 Чат</button>
-    </div>
-
     <!-- Main Workspace: Contacts & Chat -->
-    <div class="workspace mobile-view-contacts" id="workspace">
+    <div class="workspace">
         <!-- Left Column: Contact List -->
         <div class="contacts-panel panel">
             <div class="panel-header">
@@ -111,7 +106,7 @@
                 </div>
                 <div id="chat-header-actions" class="hidden">
                     <button type="button" class="btn btn-small btn-auth" id="btn-authorize-active" title="Отправить пакет авторизации (MRIM_CS_AUTHORIZE) этому контакту">
-                        🔓 Авторизовать
+                        🔓 Авторизовать контакт
                     </button>
                 </div>
             </div>
@@ -141,7 +136,8 @@
         <div class="logs-console" id="logs-console"></div>
     </div>
 </div>
-<script src="smiles.js"></script>
-<script src="app.js"></script>
+<script src="/smiles.js"></script>
+<script src="/app.js"></script>
 </body>
 </html>
+

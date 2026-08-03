@@ -428,19 +428,70 @@ function updateAuthUI() {
 }
 
 /**
- * Helper to construct avatar URL according to MRIM rules
- * http://obraz.mrim.su/{domain}/{username}/_mrimavatar
+ * Helper to construct primary avatar URL according to MRIM server rules:
+ * http://obraz.mrim.su/{domain}/{username}/_mrimavatar (proxied via /avatar/)
  */
 function getAvatarUrl(email) {
     if (!email || typeof email !== 'string') return '';
     const cleanEmail = email.trim().toLowerCase();
-    const parts = cleanEmail.split('@');
-    if (parts.length < 2) return '';
-    const username = parts[0];
-    const domain = parts[1];
+    let username = cleanEmail;
+    let domain = 'mail.ru';
+
+    if (cleanEmail.includes('@')) {
+        const parts = cleanEmail.split('@');
+        username = parts[0].trim();
+        domain = parts[1].trim();
+    }
+
     if (!username || !domain) return '';
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    return `${protocol}//obraz.mrim.su/${domain}/${username}/_mrimavatar`;
+    return `/avatar/${encodeURIComponent(domain)}/${encodeURIComponent(username)}`;
+}
+
+/**
+ * Safely set avatar image on an HTML <img> element with fallback to default silhouette SVG
+ */
+function applyAvatarWithFallbacks(imgElement, email, defaultSvgElement = null) {
+    if (!imgElement) return;
+
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+        imgElement.dataset.currentEmail = '';
+        imgElement.classList.add('hidden');
+        if (defaultSvgElement) defaultSvgElement.classList.remove('hidden');
+        return;
+    }
+
+    const avatarUrl = getAvatarUrl(cleanEmail);
+    if (!avatarUrl) {
+        imgElement.dataset.currentEmail = '';
+        imgElement.classList.add('hidden');
+        if (defaultSvgElement) defaultSvgElement.classList.remove('hidden');
+        return;
+    }
+
+    if (imgElement.dataset.currentEmail === cleanEmail && imgElement.src) {
+        return;
+    }
+    imgElement.dataset.currentEmail = cleanEmail;
+
+    const defaultSvgDataUri = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%238a9aa8"><path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z"/><path d="M12 14C7.58172 14 4 17.5817 4 22H20C20 17.5817 16.4183 14 12 14Z"/></svg>';
+
+    imgElement.onload = function() {
+        imgElement.classList.remove('hidden');
+        if (defaultSvgElement) defaultSvgElement.classList.add('hidden');
+    };
+
+    imgElement.onerror = function() {
+        if (defaultSvgElement) {
+            imgElement.classList.add('hidden');
+            defaultSvgElement.classList.remove('hidden');
+        } else {
+            imgElement.src = defaultSvgDataUri;
+            imgElement.classList.remove('hidden');
+        }
+    };
+
+    imgElement.src = avatarUrl;
 }
 
 /**
@@ -456,7 +507,6 @@ function renderContacts() {
     }
 
     el.contactsList.innerHTML = '';
-    const defaultAvatarSvg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%238a9aa8"><path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z"/><path d="M12 14C7.58172 14 4 17.5817 4 22H20C20 17.5817 16.4183 14 12 14Z"/></svg>';
 
     keys.sort((a, b) => {
         const actA = getLastActivity(a);
@@ -484,20 +534,7 @@ function renderContacts() {
         const avatarImg = document.createElement('img');
         avatarImg.className = 'chat-avatar';
         avatarImg.alt = '';
-        const avatarUrl = getAvatarUrl(email);
-        if (avatarUrl) {
-            avatarImg.src = avatarUrl;
-            avatarImg.onerror = function() {
-                if (this.src.startsWith('https:')) {
-                    this.src = avatarUrl.replace('https:', 'http:');
-                } else {
-                    this.onerror = null;
-                    this.src = defaultAvatarSvg;
-                }
-            };
-        } else {
-            avatarImg.src = defaultAvatarSvg;
-        }
+        applyAvatarWithFallbacks(avatarImg, email);
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'contact-name';
@@ -557,6 +594,12 @@ function selectContact(rawEmail) {
     state.contacts[email].unread = 0;
 
     el.currentChatTitle.textContent = `${state.contacts[email].nickname} (${email})`;
+    
+    const activeChatAvatar = document.getElementById('active-chat-avatar');
+    if (activeChatAvatar) {
+        applyAvatarWithFallbacks(activeChatAvatar, email);
+    }
+
     el.messageInput.disabled = (state.mrimState !== 'authenticated');
     el.btnSend.disabled = (state.mrimState !== 'authenticated');
 
@@ -596,11 +639,17 @@ function renderChatHistory() {
         const header = document.createElement('div');
         header.className = 'msg-header';
 
+        const avatar = document.createElement('img');
+        avatar.className = 'msg-avatar';
+        avatar.alt = '';
+        applyAvatarWithFallbacks(avatar, m.isMe ? state.myEmail : m.from);
+
         const author = document.createElement('span');
         author.className = 'msg-author' + (m.isMe ? ' me' : '');
         author.textContent = m.isMe ? (state.myEmail || 'Я') : m.from;
 
         const timeStr = formatTime(m.timestamp);
+        header.appendChild(avatar);
         header.appendChild(author);
         header.appendChild(document.createTextNode(` [${timeStr}]:`));
 
@@ -786,48 +835,7 @@ function initLoginPanelToggle() {
         const avatarImg = document.getElementById('user-avatar-img');
         const defaultSvg = document.getElementById('user-avatar-default');
         if (!avatarImg || !defaultSvg) return;
-
-        if (emailStr && emailStr.includes('@')) {
-            const parts = emailStr.trim().split('@');
-            if (parts.length === 2 && parts[0] && parts[1]) {
-                const username = parts[0].trim();
-                const domain = parts[1].trim();
-                // Use https if page is HTTPS to avoid Mixed Content blocking by browsers
-                const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-                const avatarUrl = `${protocol}//obraz.mrim.su/${domain}/${username}/_mrimavatar`;
-
-                if (avatarImg.dataset.currentSrc !== avatarUrl) {
-                    avatarImg.dataset.currentSrc = avatarUrl;
-                    
-                    avatarImg.onload = () => {
-                        avatarImg.classList.remove('hidden');
-                        defaultSvg.classList.add('hidden');
-                    };
-                    
-                    avatarImg.onerror = () => {
-                        // If HTTPS failed due to SSL, attempt HTTP fallback
-                        if (avatarUrl.startsWith('https:')) {
-                            const httpUrl = `http://obraz.mrim.su/${domain}/${username}/_mrimavatar`;
-                            avatarImg.onerror = () => {
-                                avatarImg.classList.add('hidden');
-                                defaultSvg.classList.remove('hidden');
-                            };
-                            avatarImg.src = httpUrl;
-                        } else {
-                            avatarImg.classList.add('hidden');
-                            defaultSvg.classList.remove('hidden');
-                        }
-                    };
-                    
-                    avatarImg.src = avatarUrl;
-                }
-                return;
-            }
-        }
-
-        avatarImg.dataset.currentSrc = '';
-        avatarImg.classList.add('hidden');
-        defaultSvg.classList.remove('hidden');
+        applyAvatarWithFallbacks(avatarImg, emailStr, defaultSvg);
     }
 
     function updatePreviewText() {

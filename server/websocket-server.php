@@ -259,6 +259,41 @@ class MRIMWebServer
             }
         }
 
+        // Avatar proxy handler for mrim.su avatars
+        if (preg_match('#^/avatar/([^/]+)/([^/]+)#i', $path, $avatarMatches)) {
+            $domain = rawurldecode($avatarMatches[1]);
+            $username = rawurldecode($avatarMatches[2]);
+            $targetUrl = "http://obraz.mrim.su/" . rawurlencode($domain) . "/" . rawurlencode($username) . "/_mrimavatar";
+
+            $ctx = stream_context_create([
+                'http' => [
+                    'method'  => 'GET',
+                    'timeout' => 5,
+                    'header'  => "User-Agent: MRIMWebClient/1.0\r\n",
+                ],
+            ]);
+
+            $imgData = @file_get_contents($targetUrl, false, $ctx);
+            if ($imgData !== false && strlen($imgData) > 0) {
+                $response = "HTTP/1.1 200 OK\r\n"
+                          . "Content-Type: image/jpeg\r\n"
+                          . "Cache-Control: public, max-age=86400\r\n"
+                          . "Access-Control-Allow-Origin: *\r\n"
+                          . "Content-Length: " . strlen($imgData) . "\r\n"
+                          . "Connection: close\r\n\r\n"
+                          . $imgData;
+            } else {
+                $response = "HTTP/1.1 404 Not Found\r\n"
+                          . "Content-Type: image/jpeg\r\n"
+                          . "Content-Length: 0\r\n"
+                          . "Connection: close\r\n\r\n";
+            }
+
+            @fwrite($sock, $response);
+            $this->closeClient($id);
+            return;
+        }
+
         $filePath = realpath($this->publicDir . $path);
         if ($filePath && strpos($filePath, $this->publicDir) === 0 && is_file($filePath)) {
             $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
