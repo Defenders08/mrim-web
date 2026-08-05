@@ -1,6 +1,7 @@
 # MRIM WebSocket Gateway
 
-![Uploading screen.png…]()
+<img width="869" height="600" alt="screen" src="https://github.com/user-attachments/assets/5846b910-cc84-4de1-8db3-8ca18c148e18" />
+
 
 
 
