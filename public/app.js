@@ -37,11 +37,13 @@ const el = {
     currentChatTitle: document.getElementById('current-chat-title'),
     chatHeaderActions:document.getElementById('chat-header-actions'),
     btnAuthorizeActive:document.getElementById('btn-authorize-active'),
+    btnWakeupActive:   document.getElementById('btn-wakeup-active'),
     typingIndicator:  document.getElementById('typing-indicator'),
     chatHistory:  document.getElementById('chat-history'),
     sendForm:     document.getElementById('send-form'),
     messageInput: document.getElementById('message-input'),
     btnSend:      document.getElementById('btn-send'),
+    btnSmiles:    document.getElementById('btn-smiles'),
     logsConsole:  document.getElementById('logs-console'),
     btnClearLogs: document.getElementById('btn-clear-logs'),
 };
@@ -241,6 +243,13 @@ function handleServerEvent(type, data) {
             }
             break;
 
+        case 'wakeup':
+            if (data && data.from) {
+                logToConsole(`🔔 БУДИЛЬНИК (WakeUp) от ${data.from}: ${data.text}`, 'warning');
+                triggerWakeUpEffect(data.from, data.text, data.timestamp);
+            }
+            break;
+
         case 'typing_notification':
             if (data && data.from) {
                 const typingFrom = data.from.toLowerCase().trim();
@@ -333,7 +342,7 @@ function getLastActivity(email) {
 /**
  * Handle incoming message from a contact
  */
-function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, senderNick = '') {
+function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, senderNick = '', isWakeUp = false) {
     if (!rawFrom) return;
     const fromEmail = rawFrom.toLowerCase().trim();
     const now = timestamp ? (timestamp > 1e11 ? timestamp : timestamp * 1000) : Date.now();
@@ -353,7 +362,8 @@ function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, send
         timestamp: timestamp || Math.floor(Date.now() / 1000),
         isMe: false,
         isAuthReq: isAuthReq || false,
-        senderNick: senderNick || ''
+        senderNick: senderNick || '',
+        isWakeUp: isWakeUp || false
     });
 
     if (!state.contacts[fromEmail]) {
@@ -381,6 +391,61 @@ function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, send
         state.contacts[fromEmail].unread = (state.contacts[fromEmail].unread || 0) + 1;
     }
     renderContacts();
+}
+
+/**
+ * Trigger WakeUp visual shake animation and play audio alarm
+ */
+function triggerWakeUpEffect(from, text, timestamp) {
+    if (!from) return;
+    const fromEmail = from.toLowerCase().trim();
+
+    // 1. Play audio alarm sound from public/res (alarm.wav or wakeup.wav) with Web Audio API fallback
+    try {
+        const audio = new Audio('/res/alarm.wav');
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(() => {
+                // Audio autoplay policy fallback to Web Audio API synthesizer
+                playWebAudioAlarm();
+            });
+        }
+    } catch (e) {
+        playWebAudioAlarm();
+    }
+
+    // 2. Insert alarm message into chat (with shake effect target on the message bubble)
+    const alarmText = '🔔 Собеседник отправил будильник!';
+    handleIncomingMessage(fromEmail, alarmText, timestamp, false, null, true);
+}
+
+/**
+ * Fallback Web Audio API synthesizer for alarm tone
+ */
+function playWebAudioAlarm() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+            const ctx = new AudioCtx();
+            const now = ctx.currentTime;
+
+            [0, 0.15, 0.3, 0.45].forEach((offset) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(880, now + offset);
+                osc.frequency.exponentialRampToValueAtTime(1760, now + offset + 0.1);
+                gain.gain.setValueAtTime(0.3, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + offset + 0.1);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + offset);
+                osc.stop(now + offset + 0.1);
+            });
+        }
+    } catch (e) {
+        console.warn('AudioContext alarm error:', e);
+    }
 }
 
 /**
@@ -433,6 +498,12 @@ function updateAuthUI(statusMessage) {
 
     if (el.messageInput) el.messageInput.disabled = !isAuth || !state.activeContact;
     if (el.btnSend) el.btnSend.disabled = !isAuth || !state.activeContact;
+    if (el.btnSmiles) el.btnSmiles.disabled = !isAuth || !state.activeContact;
+
+    if (!isAuth || !state.activeContact) {
+        const smilePopup = document.getElementById('smile-picker-popup');
+        if (smilePopup) smilePopup.classList.add('hidden');
+    }
 
     const emailPreview = document.getElementById('user-email-preview');
     const statusIndicator = document.getElementById('user-status-indicator');
@@ -716,6 +787,7 @@ function selectContact(rawEmail) {
 
     el.messageInput.disabled = (state.mrimState !== 'authenticated');
     el.btnSend.disabled = (state.mrimState !== 'authenticated');
+    if (el.btnSmiles) el.btnSmiles.disabled = (state.mrimState !== 'authenticated');
 
     if (el.chatHeaderActions) {
         el.chatHeaderActions.classList.toggle('hidden', state.mrimState !== 'authenticated');
@@ -748,7 +820,7 @@ function renderChatHistory() {
 
     messages.forEach(m => {
         const item = document.createElement('div');
-        item.className = 'message-item';
+        item.className = 'message-item' + (m.isWakeUp ? ' wakeup-message shake-effect' : '');
 
         const header = document.createElement('div');
         header.className = 'msg-header';
@@ -920,6 +992,101 @@ if (el.btnAuthorizeActive) {
     });
 }
 
+if (el.btnWakeupActive) {
+    el.btnWakeupActive.addEventListener('click', () => {
+        if (!state.activeContact) return;
+        if (state.mrimState !== 'authenticated') {
+            logToConsole('Ошибка: Вы должны войти в систему, чтобы отправлять Будильник.', 'error');
+            return;
+        }
+        sendWsCommand('send_wakeup', { to: state.activeContact });
+        handleOutgoingMessage(state.activeContact, '🔔 Вы отправили БУДИЛЬНИК!', Math.floor(Date.now() / 1000));
+        logToConsole(`🔔 Отправлен БУДИЛЬНИК (WakeUp) контакту ${state.activeContact}`, 'info');
+    });
+}
+
+// Setup contenteditable messageInput behavior
+function setupMessageInput() {
+    if (!el.messageInput) return;
+
+    Object.defineProperty(el.messageInput, 'value', {
+        get() {
+            let result = '';
+            function walk(node) {
+                for (let child = node.firstChild; child; child = child.nextSibling) {
+                    if (child.nodeType === Node.TEXT_NODE) {
+                        result += child.nodeValue;
+                    } else if (child.nodeType === Node.ELEMENT_NODE) {
+                        if (child.tagName === 'IMG' && child.dataset.smileId) {
+                            const id = child.dataset.smileId;
+                            const alt = child.dataset.smileAlt || '';
+                            result += `<SMILE> id=${id} alt='${alt}'</SMILE>`;
+                        } else if (child.tagName === 'BR') {
+                            result += '\n';
+                        } else if (child.tagName === 'DIV' || child.tagName === 'P') {
+                            if (result.length > 0 && !result.endsWith('\n')) {
+                                result += '\n';
+                            }
+                            walk(child);
+                        } else {
+                            walk(child);
+                        }
+                    }
+                }
+            }
+            walk(el.messageInput);
+            return result;
+        },
+        set(val) {
+            if (!val) {
+                el.messageInput.innerHTML = '';
+                return;
+            }
+            const map = window.smileMap || {};
+            const path = window.SMILE_PATH || '/res/';
+            const smileRegex = /<SMILE>\s*id=(\d+)\s+alt='([^']*)'\s*<\/SMILE>/gi;
+            let html = val.replace(smileRegex, (match, id, alt) => {
+                const fileName = map[id] || alt || 'smile.gif';
+                return `<img src="${path}${fileName}" data-smile-id="${id}" data-smile-alt="${alt}" class="mrim-smile-input" draggable="false" alt="${alt}">`;
+            });
+            html = html.replace(/\n/g, '<br>');
+            el.messageInput.innerHTML = html;
+        },
+        configurable: true
+    });
+
+    Object.defineProperty(el.messageInput, 'disabled', {
+        get() {
+            return el.messageInput.getAttribute('contenteditable') === 'false';
+        },
+        set(val) {
+            el.messageInput.setAttribute('contenteditable', val ? 'false' : 'true');
+            if (val) {
+                el.messageInput.classList.add('disabled');
+            } else {
+                el.messageInput.classList.remove('disabled');
+            }
+        },
+        configurable: true
+    });
+
+    el.messageInput.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        document.execCommand('insertText', false, text);
+    });
+
+    el.messageInput.addEventListener('input', () => {
+        if (el.messageInput.innerHTML === '<br>' || el.messageInput.textContent.trim() === '') {
+            if (!el.messageInput.querySelector('img')) {
+                el.messageInput.innerHTML = '';
+            }
+        }
+    });
+}
+
+setupMessageInput();
+
 el.sendForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = el.messageInput.value;
@@ -957,7 +1124,141 @@ window.addEventListener('DOMContentLoaded', () => {
     initLoginPanelToggle();
     initLogsPanelToggle();
     initMobileNavigation();
+    initSmilePicker();
 });
+
+// ==========================================
+// Smile Picker Controls
+// ==========================================
+function initSmilePicker() {
+    const btnSmiles = document.getElementById('btn-smiles');
+    const popup = document.getElementById('smile-picker-popup');
+    const grid = document.getElementById('smile-picker-grid');
+    const btnClose = document.getElementById('btn-close-smiles');
+    const input = el.messageInput;
+
+    if (!btnSmiles || !popup || !grid) return;
+
+    function renderSmileGrid() {
+        grid.innerHTML = '';
+        const map = window.smileMap || {};
+        const path = window.SMILE_PATH || '/res/';
+
+        Object.keys(map).forEach(id => {
+            const fileName = map[id];
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'smile-picker-item';
+            item.title = fileName;
+            item.setAttribute('data-id', id);
+
+            const img = document.createElement('img');
+            img.src = `${path}${fileName}`;
+            img.alt = fileName;
+            img.loading = 'lazy';
+
+            item.appendChild(img);
+
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                insertSmile(id);
+                closeSmilePicker();
+            });
+
+            grid.appendChild(item);
+        });
+    }
+
+    function insertSmile(id) {
+        if (!input || input.disabled || input.getAttribute('contenteditable') === 'false') return;
+        input.focus();
+
+        const map = window.smileMap || {};
+        const path = window.SMILE_PATH || '/res/';
+        const fileName = map[id] || '';
+
+        const sel = window.getSelection();
+        let range;
+
+        if (sel && sel.rangeCount > 0 && input.contains(sel.anchorNode)) {
+            range = sel.getRangeAt(0);
+        } else {
+            range = document.createRange();
+            range.selectNodeContents(input);
+            range.collapse(false);
+        }
+
+        const img = document.createElement('img');
+        img.src = `${path}${fileName}`;
+        img.className = 'mrim-smile-input';
+        img.alt = fileName;
+        img.dataset.smileId = id;
+        img.dataset.smileAlt = fileName;
+        img.draggable = false;
+
+        range.deleteContents();
+        range.insertNode(img);
+
+        // Position selection right after the inserted img element
+        range.setStartAfter(img);
+        range.setEndAfter(img);
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    function openSmilePicker() {
+        if (input && input.disabled) return;
+        if (grid.children.length === 0) {
+            renderSmileGrid();
+        }
+        popup.classList.remove('hidden');
+    }
+
+    function closeSmilePicker() {
+        popup.classList.add('hidden');
+    }
+
+    function toggleSmilePicker(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        if (popup.classList.contains('hidden')) {
+            openSmilePicker();
+        } else {
+            closeSmilePicker();
+        }
+    }
+
+    btnSmiles.addEventListener('click', toggleSmilePicker);
+
+    if (btnClose) {
+        btnClose.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeSmilePicker();
+        });
+    }
+
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+        if (!popup.classList.contains('hidden')) {
+            if (!popup.contains(e.target) && !btnSmiles.contains(e.target)) {
+                closeSmilePicker();
+            }
+        }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !popup.classList.contains('hidden')) {
+            closeSmilePicker();
+        }
+    });
+}
 
 // ==========================================
 // Collapsible Logs Panel Controls

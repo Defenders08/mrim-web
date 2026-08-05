@@ -12,8 +12,8 @@ class MRIMProtocol
     // Magic header identifying MRIM packets
     public const CS_MAGIC = 0xDEADBEEF;
 
-    // Supported protocol version (1.20)
-    public const PROTO_VERSION = 0x00010014;
+    // Supported protocol version (1.23)
+    public const PROTO_VERSION = 0x00010017;
 
     // Command packets
     public const MRIM_CS_HELLO          = 0x1001;
@@ -51,6 +51,7 @@ class MRIMProtocol
     public const MESSAGE_FLAG_NOTIFY    = 0x00000010;
     public const MESSAGE_FLAG_SYSTEM    = 0x00000040;
     public const MESSAGE_FLAG_RTF       = 0x00000080;
+    public const MESSAGE_FLAG_WAKEUP    = 0x00004000;
     public const MESSAGE_FLAG_UTF16     = 0x00200000;
 
     /**

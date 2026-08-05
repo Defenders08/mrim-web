@@ -110,6 +110,9 @@
                     <span id="typing-indicator" class="typing-status hidden">✍️ печатает...</span>
                 </div>
                 <div id="chat-header-actions" class="hidden">
+                    <button type="button" class="btn btn-small btn-auth" id="btn-wakeup-active" title="Отправить Будильник (потрясти окно и включить сирену у собеседника)">
+                        🔔 Разбудить
+                    </button>
                     <button type="button" class="btn btn-small btn-auth" id="btn-authorize-active" title="Отправить пакет авторизации (MRIM_CS_AUTHORIZE) этому контакту">
                         🔓 Авторизовать
                     </button>
@@ -124,14 +127,22 @@
                 </div>
             </div>
             <form id="send-form" class="send-box">
+                <!-- Smile Picker Popup -->
+                <div id="smile-picker-popup" class="smile-picker-popup hidden">
+                    <div class="smile-picker-header">
+                        <span>Смайлики</span>
+                        <button type="button" class="smile-picker-close" id="btn-close-smiles" title="Закрыть">&times;</button>
+                    </div>
+                    <div class="smile-picker-grid" id="smile-picker-grid"></div>
+                </div>
                 <div class="send-input-row">
-                    <textarea id="message-input" rows="1" placeholder="Напишите сообщение..." disabled></textarea>
+                    <div id="message-input" class="message-input" contenteditable="false" placeholder="Напишите сообщение..."></div>
                     <div class="send-buttons">
                         <button type="submit" class="btn btn-send" id="btn-send" disabled>Отправить</button>
                     </div>
                 </div>
                 <div class="send-toolbar">
-                    <button type="button" class="btn btn-small btn-toolbar-stub" title="Смайлики">Смайлики</button>
+                    <button type="button" class="btn btn-small btn-toolbar-stub" id="btn-smiles" title="Смайлики" disabled>Смайлики</button>
                     <button type="button" class="btn btn-small btn-toolbar-stub" title="Будильник">Будильник</button>
                     <button type="button" class="btn btn-small btn-toolbar-stub" title="Медиа">Медиа</button>
                 </div>

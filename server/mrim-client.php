@@ -7,13 +7,22 @@
  */
 
 require_once __DIR__ . '/mrim-protocol.php';
+require_once __DIR__ . '/mrim-wakeup.php';
 
 class MRIMClient
 {
+    public const CLIENT_NAME_DEFAULT  = 'client="webagent" version="1.0" build="20260805"';
+    public const CLIENT_NAME_WEBAGENT = 'client="webagent" version="1.0" build="20260805"';
+    public const CLIENT_NAME_MAGENT   = 'client="magent" version="5.10" build="3850"';
+    public const CLIENT_NAME_MAILRU   = 'client="Mail.Ru Agent" version="5.10" build="3850"';
+
     private $socket = null;
     private string $dispatcherHost;
     private int $dispatcherPort;
     private string $clientName;
+    private int $featureMask = MRIMWakeUp::FEATURE_FLAG_WAKEUP; // 0x00000010
+    private int $userFeatureMask = 0;
+    private string $lang = 'ru';
 
     private string $state = 'disconnected'; // disconnected, connecting, connected, authenticated
     private int $seq = 1;
@@ -33,7 +42,7 @@ class MRIMClient
     {
         $this->dispatcherHost = $config['mrim_dispatcher_host'] ?? 'mrim.su';
         $this->dispatcherPort = $config['mrim_dispatcher_port'] ?? 2042;
-        $this->clientName     = $config['mrim_client_name'] ?? 'client="mrim-web-client 1.0"';
+        $this->clientName     = $config['mrim_client_name'] ?? self::CLIENT_NAME_DEFAULT;
         $this->pingPeriod     = $config['ping_interval'] ?? 30;
     }
 
@@ -170,13 +179,79 @@ class MRIMClient
      */
     public function login(): void
     {
-        $this->log("Sending MRIM_CS_LOGIN2 for {$this->email}...");
+        // 0x000007FF: Standard Mail.Ru Agent 5.10 capability mask (includes FEATURE_FLAG_WAKEUP = 0x10, SMS = 0x01, MULTS = 0x20, VIDEO = 0x100)
+        $featureMask = MRIMWakeUp::FEATURE_FLAG_WAKEUP | 0x000007EF;
+        $userFeatureMask = 0;
+        $lang = 'ru';
 
-        // Payload: LPS(login) + LPS(password) + uint32(status) + LPS(client string)
+        if (empty($this->clientName) || strpos($this->clientName, 'webagent') !== false) {
+            $this->clientName = self::CLIENT_NAME_MAGENT; // client="magent" version="5.10" build="3850"
+        }
+        $clientName = $this->clientName;
+
+        $this->log(sprintf(
+            "LOGIN2 CAPABILITIES:\nuser=%s\nclient=%s\nfeature_mask=0x%08X\nuser_feature_mask=0x%08X\nlang=%s",
+            $this->email,
+            $clientName,
+            $featureMask,
+            $userFeatureMask,
+            $lang
+        ), 'info');
+
+        // Full MRIM_CS_LOGIN2 Payload:
+        // 1. LPS(login)
+        // 2. LPS(password)
+        // 3. uint32(status)
+        // 4. LPS(client string)
+        // 5. uint32(feature_mask) -> FEATURE_FLAG_WAKEUP = 0x00000010
+        // 6. LPS(xstatus_uri)
+        // 7. LPS(xstatus_title)
+        // 8. LPS(xstatus_desc)
+        // 9. uint32(user_feature_mask)
+        // 10. LPS(lang)
         $payload = MRIMProtocol::encodeLPS($this->email)
                  . MRIMProtocol::encodeLPS($this->password)
                  . MRIMProtocol::encodeUint32($this->status)
-                 . MRIMProtocol::encodeLPS($this->clientName);
+                 . MRIMProtocol::encodeLPS($clientName)
+                 . MRIMProtocol::encodeUint32($featureMask)
+                 . MRIMProtocol::encodeLPS('')  // xstatus_uri
+                 . MRIMProtocol::encodeLPS('')  // xstatus_title
+                 . MRIMProtocol::encodeLPS('')  // xstatus_desc
+                 . MRIMProtocol::encodeUint32($userFeatureMask) // user_feature_mask
+                 . MRIMProtocol::encodeLPS($lang); // lang
+
+        $supportsWakeUpBool = (($featureMask & MRIMWakeUp::FEATURE_FLAG_WAKEUP) !== 0) ? 'true' : 'false';
+        $this->log(sprintf(
+            "LOGIN2 CAPABILITY DEBUG:\nfeature_mask=0x%08X\nsupports_wakeup=%s\nraw_payload=%s",
+            $featureMask,
+            $supportsWakeUpBool,
+            bin2hex($payload)
+        ), 'debug');
+
+        $this->log("LOGIN2 Full HEX Payload: " . bin2hex($payload));
+
+        $this->log(sprintf(
+            "LOGIN2 DEBUG:\nemail=%s\npassword_length=%d\nstatus=%d\nclientName=%s\nfeature_mask=0x%08X\nxstatus_uri=%s\nxstatus_title=%s\nxstatus_desc=%s\nuser_feature_mask=0x%08X\nlang=%s",
+            $this->email,
+            strlen($this->password),
+            $this->status,
+            $clientName,
+            $featureMask,
+            '',
+            '',
+            '',
+            $userFeatureMask,
+            $lang
+        ));
+
+        $fullPacket = MRIMProtocol::buildPacket(MRIMProtocol::MRIM_CS_LOGIN2, $this->seq, $payload);
+        $this->log("DEBUG PACKET DUMP:\n" . self::formatPacketDump(MRIMProtocol::MRIM_CS_LOGIN2, $fullPacket), 'debug');
+
+        $this->log(sprintf(
+            "LOGIN2 CLIENT DEBUG:\nclientName=%s\nfeature_mask=0x%08X",
+            $clientName,
+            $featureMask
+        ), 'info');
 
         $this->sendPacket(MRIMProtocol::MRIM_CS_LOGIN2, $payload);
     }
@@ -206,6 +281,90 @@ class MRIMClient
 
         $this->log("SEND MESSAGE PAYLOAD:\nMESSAGE FLAGS HEX: $flagsHex\nrecipient: $toEmail\ntext: $cleanText\nRAW_HEX: $rawHex", 'info');
 
+        return $this->sendPacket(MRIMProtocol::MRIM_CS_MESSAGE, $payload);
+    }
+
+    /**
+     * Send a WakeUp / Alarm request to a contact
+     */
+    public function sendWakeUp(string $toEmail): bool
+    {
+        if ($this->state !== 'authenticated' || !$this->socket) {
+            return false;
+        }
+
+        $cleanEmail = strtolower(trim($toEmail));
+
+        $this->log(sprintf(
+            "CLIENT OBJECT DEBUG:\nobject_id=%d\nfunction=sendWakeUp",
+            spl_object_id($this)
+        ), 'debug');
+
+        $this->log(sprintf(
+            "CONTACT KEYS:\n%s",
+            json_encode(array_keys($this->contacts))
+        ), 'debug');
+
+        $contactExists = isset($this->contacts[$cleanEmail]) ? "YES" : "NO";
+        $contact = $this->contacts[$cleanEmail] ?? null;
+
+        $this->log(sprintf(
+            "CONTACT OBJECT BEFORE WAKEUP:\nemail=%s\ndata=%s",
+            $cleanEmail,
+            json_encode($contact)
+        ), 'debug');
+
+        $knownFeatures = $contact['feature_mask'] ?? 0;
+        $supportsWakeUp = (($knownFeatures & MRIMWakeUp::FEATURE_FLAG_WAKEUP) !== 0) ? "YES" : "NO";
+        $binaryStr = sprintf('%032b', $knownFeatures);
+
+        $this->log(sprintf(
+            "WAKEUP CAPABILITY CHECK:\nemail=%s\nstored_feature_mask=0x%08X\nbinary=%s\nsupports_wakeup=%s",
+            $cleanEmail,
+            $knownFeatures,
+            $binaryStr,
+            $supportsWakeUp
+        ), 'debug');
+
+        $this->log(sprintf(
+            "CONTACT STATE TRACE:\npacket=%s\nfunction=%s\nemail=%s\nfeature_mask=0x%08X\nfull_contact=%s",
+            'SEND_WAKEUP_CHECK',
+            'sendWakeUp',
+            $cleanEmail,
+            $knownFeatures,
+            json_encode($contact ?? [])
+        ), 'debug');
+
+        $this->log(sprintf(
+            "WAKEUP TARGET DEBUG:\nrecipient=%s\ncontacts_exists=%s\nstored_feature_mask=0x%08X\nsupports_wakeup=%s",
+            $cleanEmail,
+            $contactExists,
+            $knownFeatures,
+            $supportsWakeUp
+        ), 'info');
+
+        if (($knownFeatures & MRIMWakeUp::FEATURE_FLAG_WAKEUP) === 0) {
+            $this->log(sprintf(
+                "WAKEUP CAPABILITY UNKNOWN:\nrecipient=%s\nstored_feature_mask=0x%08X\naction=sending_anyway",
+                $cleanEmail,
+                $knownFeatures
+            ), 'warning');
+        }
+
+        $payload = MRIMWakeUp::buildWakeUpPayload($cleanEmail);
+
+        $flagsHex = "0x" . sprintf('%08X', MRIMWakeUp::MESSAGE_FLAG_WAKEUP);
+        $payloadHex = bin2hex($payload);
+
+        $this->log(sprintf(
+            "WAKEUP PAYLOAD DEBUG:\nrecipient=%s\nflags=%s\npayload_hex=%s",
+            $cleanEmail,
+            $flagsHex,
+            $payloadHex
+        ), 'debug');
+
+        $fullPacket = MRIMProtocol::buildPacket(MRIMProtocol::MRIM_CS_MESSAGE, $this->seq, $payload);
+        $this->log("WAKEUP PACKET DUMP:\n" . self::formatPacketDump(MRIMProtocol::MRIM_CS_MESSAGE, $fullPacket), 'debug');
         return $this->sendPacket(MRIMProtocol::MRIM_CS_MESSAGE, $payload);
     }
 
@@ -417,6 +576,46 @@ class MRIMClient
                     $pOffset + $curr, $pOffset + $curr + 4 + $lLen - 1, 4 + $lLen, $lLen, $str, bin2hex(substr($payload, $curr, 4 + $lLen)));
                 $curr += 4 + $lLen;
             }
+            if ($curr + 4 <= $pLen) {
+                $fm = unpack('V', substr($payload, $curr, 4))[1];
+                $out .= sprintf("0x%02X - 0x%02X [4 b] payload.feature_mask: uint32(0x%08X) HEX=%s\n", 
+                    $pOffset + $curr, $pOffset + $curr + 3, $fm, bin2hex(substr($payload, $curr, 4)));
+                $curr += 4;
+            }
+            if ($curr + 4 <= $pLen) {
+                $lLen = unpack('V', substr($payload, $curr, 4))[1];
+                $str = substr($payload, $curr + 4, $lLen);
+                $out .= sprintf("0x%02X - 0x%02X [%d b] payload.xstatus_uri: LPS(len=%d) HEX=%s\n", 
+                    $pOffset + $curr, $pOffset + $curr + 4 + $lLen - 1, 4 + $lLen, $lLen, bin2hex(substr($payload, $curr, 4 + $lLen)));
+                $curr += 4 + $lLen;
+            }
+            if ($curr + 4 <= $pLen) {
+                $lLen = unpack('V', substr($payload, $curr, 4))[1];
+                $str = substr($payload, $curr + 4, $lLen);
+                $out .= sprintf("0x%02X - 0x%02X [%d b] payload.xstatus_title: LPS(len=%d) HEX=%s\n", 
+                    $pOffset + $curr, $pOffset + $curr + 4 + $lLen - 1, 4 + $lLen, $lLen, bin2hex(substr($payload, $curr, 4 + $lLen)));
+                $curr += 4 + $lLen;
+            }
+            if ($curr + 4 <= $pLen) {
+                $lLen = unpack('V', substr($payload, $curr, 4))[1];
+                $str = substr($payload, $curr + 4, $lLen);
+                $out .= sprintf("0x%02X - 0x%02X [%d b] payload.xstatus_desc: LPS(len=%d) HEX=%s\n", 
+                    $pOffset + $curr, $pOffset + $curr + 4 + $lLen - 1, 4 + $lLen, $lLen, bin2hex(substr($payload, $curr, 4 + $lLen)));
+                $curr += 4 + $lLen;
+            }
+            if ($curr + 4 <= $pLen) {
+                $ufm = unpack('V', substr($payload, $curr, 4))[1];
+                $out .= sprintf("0x%02X - 0x%02X [4 b] payload.user_feature_mask: uint32(0x%08X) HEX=%s\n", 
+                    $pOffset + $curr, $pOffset + $curr + 3, $ufm, bin2hex(substr($payload, $curr, 4)));
+                $curr += 4;
+            }
+            if ($curr + 4 <= $pLen) {
+                $lLen = unpack('V', substr($payload, $curr, 4))[1];
+                $str = substr($payload, $curr + 4, $lLen);
+                $out .= sprintf("0x%02X - 0x%02X [%d b] payload.lang: LPS(len=%d, str='%s') HEX=%s\n", 
+                    $pOffset + $curr, $pOffset + $curr + 4 + $lLen - 1, 4 + $lLen, $lLen, $str, bin2hex(substr($payload, $curr, 4 + $lLen)));
+                $curr += 4 + $lLen;
+            }
         } elseif ($msgId === MRIMProtocol::MRIM_CS_MESSAGE) {
             $curr = 0;
             if ($curr + 4 <= $pLen) {
@@ -597,9 +796,55 @@ class MRIMClient
                 break;
 
             case MRIMProtocol::MRIM_CS_USER_STATUS:
-            case MRIMProtocol::MRIM_CS_USER_INFO:
             case 0x1022: // MRIM_CS_STATUS_CHANGED / MRIM_CS_CONTACT_STATUS
-                $this->parseUserStatus($data);
+                $this->parseUserStatus($data, $cmd, $cmdName);
+                break;
+
+            case MRIMProtocol::MRIM_CS_USER_INFO:
+                $rawNew = '';
+                $rawOld = '';
+                $dataLen = strlen($data);
+                if ($dataLen >= 4) {
+                    $tmpOffset = 4;
+                    $emailRes = MRIMProtocol::decodeLPS($data, $tmpOffset);
+                    $tmpOffset = $emailRes['next_offset'];
+                    $uriRes = MRIMProtocol::decodeLPS($data, $tmpOffset);
+                    $tmpOffset = $uriRes['next_offset'];
+                    $titleRes = MRIMProtocol::decodeLPS($data, $tmpOffset);
+                    $tmpOffset = $titleRes['next_offset'];
+                    $descRes = MRIMProtocol::decodeLPS($data, $tmpOffset);
+                    $tmpOffset = $descRes['next_offset'];
+                    if ($tmpOffset + 8 <= $dataLen) {
+                        $tmpOffset += 8;
+                        if ($tmpOffset < $dataLen) {
+                            $rawNewRes = MRIMProtocol::decodeLPS($data, $tmpOffset);
+                            $rawNew = $rawNewRes['value'];
+                            $tmpOffset = $rawNewRes['next_offset'];
+                            if ($tmpOffset < $dataLen) {
+                                $rawOldRes = MRIMProtocol::decodeLPS($data, $tmpOffset);
+                                $rawOld = $rawOldRes['value'];
+                            }
+                        }
+                    }
+                }
+                $this->log(sprintf(
+                    "USERAGENT DEBUG:\npacket=%s\nraw_new=%s\nraw_old=%s",
+                    $cmdName,
+                    $rawNew,
+                    $rawOld
+                ), 'info');
+                $this->log(sprintf(
+                    "CAPABILITY RECEIVE DEBUG:\npacket=%s\nemail=N/A\noffset=0\nraw_bytes=%s\ndecoded_feature_mask=0x00000000",
+                    $cmdName,
+                    bin2hex(substr($data, 0, 64))
+                ), 'debug');
+                $this->log(sprintf(
+                    "USER_INFO PACKET DEBUG:\ncmd=0x%04X (%s)\nlength=%d\nignored=true",
+                    $cmd,
+                    $cmdName,
+                    strlen($data)
+                ), 'debug');
+                $this->log("Received MRIM_CS_USER_INFO (0x1015), skipped status parsing", 'debug');
                 break;
 
             case MRIMProtocol::MRIM_CS_MESSAGE_RECV2:
@@ -665,6 +910,11 @@ class MRIMClient
      */
     private function parseContactList(string $data): void
     {
+        $this->log(sprintf(
+            "CLIENT OBJECT DEBUG:\nobject_id=%d\nfunction=parseContactList",
+            spl_object_id($this)
+        ), 'debug');
+
         $offset = 0;
         $dataLen = strlen($data);
 
@@ -730,6 +980,7 @@ class MRIMClient
 
         // Parse contact records until data end
         while ($offset + 4 <= $dataLen) {
+            $recordStartOffset = $offset;
             $uVals = [];
             $sVals = [];
 
@@ -761,13 +1012,17 @@ class MRIMClient
                 $sVals[] = $nickRes['value'];
             }
 
+            $recordRawBytes = substr($data, $recordStartOffset, $offset - $recordStartOffset);
+            $recordRawHex = bin2hex($recordRawBytes);
+
             $flags    = $uVals[0] ?? 0;
             $groupId  = $uVals[1] ?? 0;
 
             // In MRIM protocol contacts_mask:
             // Field u#0 = flags
             // Field u#1 = group_id
-            // Field u#2 = user_status / server_status
+            // Field u#2 = user_status
+            // Field u#3 = xstatus_id / server_status (NOT client feature_mask)
             $statusVal = 0;
             if (count($uVals) >= 3) {
                 $statusVal = $uVals[2];
@@ -798,20 +1053,114 @@ class MRIMClient
             $isOnlineStr = ($statusVal > 0) ? "YES" : "NO";
             $contactIndex++;
 
-            // Output structured debug info required by specification:
-            $this->log("CONTACT #$contactIndex -> UID: $emailClean | EMAIL: $emailClean | NICK: $nickClean | STATUS: $statusVal (0x" . dechex($statusVal) . ") | FLAGS: $flags (0x" . dechex($flags) . ") | ONLINE: $isOnlineStr", 'info');
+            $oldFeatureMask = $this->contacts[$emailClean]['feature_mask'] ?? null;
+            $oldValStr = is_int($oldFeatureMask) ? sprintf('0x%08X', $oldFeatureMask) : 'NULL';
+            $oldContactObj = $this->contacts[$emailClean] ?? null;
 
-            $contacts[$emailClean] = [
+            // CONTACT_LIST2 uVals[4] contains contact's feature_mask capabilities
+            $newFeatureMaskFromPacket = $uVals[4] ?? 0;
+            $appliedFeatureMask = $this->validateAndApplyFeatureMask($emailClean, $newFeatureMaskFromPacket, 'parseContactList (CONTACT_LIST2)');
+
+            // Preserve old feature_mask if old_feature_mask != null and new_feature_mask == 0
+            if ($oldFeatureMask !== null && $appliedFeatureMask === 0) {
+                $finalFeatureMask = $oldFeatureMask;
+            } else {
+                $finalFeatureMask = $appliedFeatureMask;
+            }
+
+            $this->log(sprintf(
+                "CAPABILITY RECEIVE DEBUG:\npacket=%s\nemail=%s\noffset=N/A\nraw_bytes=%s\ndecoded_feature_mask=0x%08X",
+                'MRIM_CS_CONTACT_LIST2',
+                $emailClean,
+                $recordRawHex,
+                $newFeatureMaskFromPacket
+            ), 'debug');
+
+            $this->log(sprintf(
+                "CONTACT FEATURE UPDATE:\nemail=%s\nold_feature_mask=%s\nreceived_feature_mask=0x%08X\nfinal_feature_mask=0x%08X\nsource_packet=%s",
+                $emailClean,
+                $oldValStr,
+                $newFeatureMaskFromPacket,
+                $finalFeatureMask,
+                'MRIM_CS_CONTACT_LIST2'
+            ), 'debug');
+
+            $this->log(sprintf(
+                "CONTACT MASK FLOW:\nemail=%s\nsource_packet=%s\nold_mask=%s\nreceived_mask=0x%08X\nsaved_mask=0x%08X",
+                $emailClean,
+                'MRIM_CS_CONTACT_LIST2',
+                $oldValStr,
+                $newFeatureMaskFromPacket,
+                $finalFeatureMask
+            ), 'debug');
+
+            $this->log(sprintf(
+                "CONTACT LIST REPLACE DEBUG:\nemail=%s\nold_feature_mask=%s\nnew_feature_mask=0x%08X\nfinal_feature_mask=0x%08X",
+                $emailClean,
+                $oldValStr,
+                $newFeatureMaskFromPacket,
+                $finalFeatureMask
+            ), 'debug');
+
+            $newContactObj = [
                 'email'        => $emailClean,
                 'nickname'     => $nickClean,
                 'status'       => $statusVal,
                 'status_title' => '',
                 'status_desc'  => '',
+                'feature_mask' => $finalFeatureMask,
                 'group_id'     => $groupId,
                 'group_name'   => $groups[$groupId] ?? 'General',
                 'phones'       => $phonesStr,
                 'unread'       => 0,
             ];
+
+            $this->log(sprintf(
+                "CONTACT WRITE TRACE:\nfunction=%s\nemail=%s\nold_feature_mask=%s\nnew_feature_mask=0x%08X\nfull_old_object=%s\nfull_new_object=%s",
+                'parseContactList',
+                $emailClean,
+                $oldValStr,
+                $finalFeatureMask,
+                json_encode($oldContactObj),
+                json_encode($newContactObj)
+            ), 'debug');
+
+            $this->log(sprintf(
+                "CAPABILITY RAW DEBUG:\npacket=%s\nemail=%s\nraw_hex=%s\ndecoded_fields=%s\npossible_feature_mask=0x%08X",
+                'MRIM_CS_CONTACT_LIST2',
+                $emailClean,
+                $recordRawHex,
+                json_encode(['uVals' => $uVals, 'sVals' => $sVals]),
+                0
+            ), 'debug');
+
+            $this->log(sprintf(
+                "CONTACT STATE TRACE:\npacket=%s\nfunction=%s\nemail=%s\nfeature_mask=0x%08X\nfull_contact=%s",
+                'MRIM_CS_CONTACT_LIST2',
+                'parseContactList',
+                $emailClean,
+                $finalFeatureMask,
+                json_encode($newContactObj)
+            ), 'debug');
+
+            $this->log(sprintf(
+                "CONTACT_LIST2 RAW RECORD DEBUG (#%d):\nemail=%s\nraw_hex=%s\nuVals=%s\nsVals=%s",
+                $contactIndex,
+                $emailClean,
+                $recordRawHex,
+                json_encode($uVals),
+                json_encode($sVals)
+            ), 'debug');
+
+            $this->log("CONTACT #$contactIndex -> UID: $emailClean | EMAIL: $emailClean | NICK: $nickClean | STATUS: $statusVal (0x" . dechex($statusVal) . ") | FLAGS: $flags (0x" . dechex($flags) . ") | ONLINE: $isOnlineStr", 'info');
+            $this->log(sprintf(
+                "CONTACT_LIST2 FEATURE:\nemail=%s\nfeature_mask=0x%08X\nraw_hex=%s",
+                $emailClean,
+                $finalFeatureMask,
+                bin2hex(pack('V', $finalFeatureMask))
+            ), 'debug');
+
+            $contacts[$emailClean] = $newContactObj;
         }
 
         $this->contacts = $contacts;
@@ -822,8 +1171,15 @@ class MRIMClient
     /**
      * Parse MRIM_CS_USER_STATUS payload
      */
-    private function parseUserStatus(string $data): void
+    private function parseUserStatus(string $data, int $cmd = 0x100F, string $cmdName = 'MRIM_CS_USER_STATUS'): void
     {
+        $this->log(sprintf(
+            "CLIENT OBJECT DEBUG:\nobject_id=%d\nfunction=parseUserStatus\ncmd=0x%04X (%s)",
+            spl_object_id($this),
+            $cmd,
+            $cmdName
+        ), 'debug');
+
         $offset = 0;
         $dataLen = strlen($data);
 
@@ -834,19 +1190,104 @@ class MRIMClient
         $statusVal = MRIMProtocol::decodeUint32($data, $offset);
         $offset += 4;
 
+        // 1. user_email
         $userEmailRes = MRIMProtocol::decodeLPS($data, $offset);
         $offset = $userEmailRes['next_offset'];
 
+        // 2. xstatus_uri
+        $xstatusUriRes = MRIMProtocol::decodeLPS($data, $offset);
+        $offset = $xstatusUriRes['next_offset'];
+
+        // 3. xstatus_title
         $statusTitleRes = MRIMProtocol::decodeLPS($data, $offset);
         $offset = $statusTitleRes['next_offset'];
 
+        // 4. xstatus_desc
         $statusDescRes = MRIMProtocol::decodeLPS($data, $offset);
         $offset = $statusDescRes['next_offset'];
+
+        $offsetBeforeFeatureMask = $offset;
+        $rawBytesNext8 = ($offset + 8 <= $dataLen) ? substr($data, $offset, 8) : substr($data, $offset);
+        $rawBytesNext8Hex = bin2hex($rawBytesNext8);
+
+        $featureMaskVal = 0;
+        if ($offset + 4 <= $dataLen) {
+            $featureMaskVal = MRIMProtocol::decodeUint32($data, $offset);
+            $offset += 4;
+        }
+
+        $userFeatureMaskVal = 0;
+        if ($offset + 4 <= $dataLen) {
+            $userFeatureMaskVal = MRIMProtocol::decodeUint32($data, $offset);
+            $offset += 4;
+        }
+
+        $rawNew = '';
+        $rawOld = '';
+        if ($offset < $dataLen) {
+            $rawNewRes = MRIMProtocol::decodeLPS($data, $offset);
+            $rawNew = $rawNewRes['value'];
+            $offset = $rawNewRes['next_offset'];
+            if ($offset < $dataLen) {
+                $rawOldRes = MRIMProtocol::decodeLPS($data, $offset);
+                $rawOld = $rawOldRes['value'];
+            }
+        }
+
+        $this->log(sprintf(
+            "USERAGENT DEBUG:\npacket=%s\nraw_new=%s\nraw_old=%s",
+            $cmdName,
+            $rawNew,
+            $rawOld
+        ), 'info');
 
         $emailClean = strtolower(trim($userEmailRes['value']));
         if ($emailClean === '') {
             return;
         }
+
+        $this->log(sprintf(
+            "USER STATUS CAPABILITY TRACE:\nemail=%s\npacket=%s\noffset_before_feature_mask=%d\nraw_feature_bytes=%s\ndecoded_feature_mask=0x%08X\ndecoded_user_feature_mask=0x%08X",
+            $emailClean,
+            $cmdName,
+            $offsetBeforeFeatureMask,
+            $rawBytesNext8Hex,
+            $featureMaskVal,
+            $userFeatureMaskVal
+        ), 'debug');
+
+        $this->log(sprintf(
+            "CAPABILITY RECEIVE DEBUG:\npacket=%s\nemail=%s\noffset=%d\nraw_bytes=%s\ndecoded_feature_mask=0x%08X",
+            $cmdName,
+            $emailClean,
+            $offsetBeforeFeatureMask,
+            $rawBytesNext8Hex,
+            $featureMaskVal
+        ), 'debug');
+
+        $oldFeatureMask = $this->contacts[$emailClean]['feature_mask'] ?? null;
+        $oldValStr = is_int($oldFeatureMask) ? sprintf('0x%08X', $oldFeatureMask) : 'NULL';
+        $oldObj = $this->contacts[$emailClean] ?? null;
+
+        $newFeatureMask = $this->validateAndApplyFeatureMask($emailClean, $featureMaskVal, "parseUserStatus ($cmdName)");
+
+        $this->log(sprintf(
+            "CONTACT FEATURE UPDATE:\nemail=%s\nold_feature_mask=%s\nreceived_feature_mask=0x%08X\nfinal_feature_mask=0x%08X\nsource_packet=%s",
+            $emailClean,
+            $oldValStr,
+            $featureMaskVal,
+            $newFeatureMask,
+            $cmdName
+        ), 'debug');
+
+        $this->log(sprintf(
+            "CONTACT MASK FLOW:\nemail=%s\nsource_packet=%s\nold_mask=%s\nreceived_mask=0x%08X\nsaved_mask=0x%08X",
+            $emailClean,
+            $cmdName,
+            $oldValStr,
+            $featureMaskVal,
+            $newFeatureMask
+        ), 'debug');
 
         if (!isset($this->contacts[$emailClean])) {
             $this->contacts[$emailClean] = [
@@ -855,6 +1296,7 @@ class MRIMClient
                 'status'       => $statusVal,
                 'status_title' => $statusTitleRes['value'],
                 'status_desc'  => $statusDescRes['value'],
+                'feature_mask' => $newFeatureMask,
                 'group_id'     => 0,
                 'group_name'   => 'General',
                 'phones'       => '',
@@ -864,10 +1306,58 @@ class MRIMClient
             $this->contacts[$emailClean]['status'] = $statusVal;
             $this->contacts[$emailClean]['status_title'] = $statusTitleRes['value'];
             $this->contacts[$emailClean]['status_desc'] = $statusDescRes['value'];
+            $this->contacts[$emailClean]['feature_mask'] = $newFeatureMask;
         }
 
+        $newObj = $this->contacts[$emailClean];
+
+        $this->log(sprintf(
+            "CONTACT WRITE TRACE:\nfunction=%s\nemail=%s\nold_feature_mask=%s\nnew_feature_mask=0x%08X\nfull_old_object=%s\nfull_new_object=%s",
+            'parseUserStatus',
+            $emailClean,
+            $oldValStr,
+            $newFeatureMask,
+            json_encode($oldObj),
+            json_encode($newObj)
+        ), 'debug');
+
+        $this->log(sprintf(
+            "CAPABILITY RAW DEBUG:\npacket=%s\nemail=%s\nraw_hex=%s\ndecoded_fields=%s\npossible_feature_mask=0x%08X",
+            $cmdName,
+            $emailClean,
+            bin2hex($data),
+            json_encode([
+                'status'            => $statusVal,
+                'email'             => $emailClean,
+                'xstatus_uri'       => $xstatusUriRes['value'],
+                'xstatus_title'     => $statusTitleRes['value'],
+                'xstatus_desc'      => $statusDescRes['value'],
+                'feature_mask'      => $featureMaskVal,
+                'user_feature_mask' => $userFeatureMaskVal,
+            ]),
+            $featureMaskVal
+        ), 'debug');
+
+        $this->log(sprintf(
+            "CONTACT STATE TRACE:\npacket=%s\nfunction=%s\nemail=%s\nfeature_mask=0x%08X\nfull_contact=%s",
+            $cmdName,
+            'parseUserStatus',
+            $emailClean,
+            $newFeatureMask,
+            json_encode($newObj)
+        ), 'debug');
+
         $isOnlineStr = ($statusVal > 0) ? "YES" : "NO";
-        $this->log("STATUS UPDATE -> EMAIL: $emailClean | STATUS: $statusVal (0x" . dechex($statusVal) . ") | ONLINE: $isOnlineStr", 'info');
+        $this->log("STATUS UPDATE -> EMAIL: $emailClean | STATUS: $statusVal (0x" . dechex($statusVal) . ") | FEATURE_MASK: 0x" . sprintf('%08X', $newFeatureMask) . " | ONLINE: $isOnlineStr", 'info');
+        $this->log(sprintf(
+            "USER_STATUS FEATURE:\nemail=%s\nxstatus_uri=%s\nxstatus_title=%s\nxstatus_desc=%s\nfeature_mask=0x%08X\nraw_hex=%s",
+            $emailClean,
+            $xstatusUriRes['value'],
+            $statusTitleRes['value'],
+            $statusDescRes['value'],
+            $newFeatureMask,
+            bin2hex(pack('V', $newFeatureMask))
+        ), 'debug');
 
         $this->emit('user_status', [
             'email'        => $emailClean,
@@ -875,6 +1365,62 @@ class MRIMClient
             'status_title' => $statusTitleRes['value'],
             'status_desc'  => $statusDescRes['value'],
         ]);
+    }
+
+    /**
+     * Validate and update contact feature_mask safely
+     */
+    private function validateAndApplyFeatureMask(string $emailClean, int $receivedMask, string $source): int
+    {
+        $oldMask = $this->contacts[$emailClean]['feature_mask'] ?? 0;
+
+        $action = 'IGNORE';
+        $reason = '';
+        $finalMask = $oldMask;
+
+        if ($receivedMask === 0) {
+            $action = 'IGNORE';
+            $reason = 'Received feature_mask is 0';
+        } elseif ($receivedMask === 0x00000001) {
+            $action = 'IGNORE';
+            $reason = 'Received mask 0x00000001 is online status, not feature capabilities';
+        } elseif (($receivedMask & MRIMWakeUp::FEATURE_FLAG_WAKEUP) !== 0) {
+            $action = 'ACCEPT';
+            $reason = 'Contains FEATURE_FLAG_WAKEUP capability (0x00000010)';
+            $finalMask = $receivedMask;
+        } elseif (($receivedMask & 0xFFFFFFF0) !== 0) {
+            $action = 'ACCEPT';
+            $reason = 'Contains valid capability bits';
+            $finalMask = $receivedMask;
+        } else {
+            if ($oldMask !== 0) {
+                $action = 'IGNORE';
+                $reason = 'Received mask lacks valid capability flags; preserving existing mask';
+            } else {
+                $action = 'ACCEPT';
+                $reason = 'Setting initial non-zero feature mask';
+                $finalMask = $receivedMask;
+            }
+        }
+
+        $this->log(sprintf(
+            "FEATURE_MASK VALIDATION:\nemail=%s\nold_mask=0x%08X\nreceived_mask=0x%08X\naction=%s\nreason=%s",
+            $emailClean,
+            $oldMask,
+            $receivedMask,
+            $action,
+            $reason
+        ), 'debug');
+
+        $this->log(sprintf(
+            "FEATURE MASK TRACE:\nsource=%s\nemail=%s\nold=0x%08X\nnew=0x%08X",
+            $source,
+            $emailClean,
+            $oldMask,
+            $finalMask
+        ), 'debug');
+
+        return $finalMask;
     }
 
     /**
@@ -998,13 +1544,27 @@ class MRIMClient
             }
         }
 
-        if (($flags & MRIMProtocol::MESSAGE_FLAG_NOTIFY) !== 0) {
-            $this->log("Пользователь $fromEmail набирает сообщение...", 'debug');
-            $this->emit('typing_notification', ['from' => $fromEmail]);
+        $isWakeUp = MRIMWakeUp::isWakeUpMessage($flags, $msgText);
+        $isNotify = (($flags & MRIMProtocol::MESSAGE_FLAG_NOTIFY) !== 0) && ($msgText === '1' || $msgText === '0');
+
+        $this->log(sprintf(
+            "MESSAGE RECV FLAGS DEBUG:\nfrom=%s\nflags=0x%08X\nis_wakeup=%s\ntext=%s",
+            $fromEmail,
+            $flags,
+            $isWakeUp ? 'true' : 'false',
+            $msgText
+        ), 'debug');
+
+        $this->log(sprintf("INCOMING MESSAGE EVALUATION:\nFLAGS = 0x%08X\nTEXT = '%s'\nIS_WAKEUP = %s\nIS_NOTIFY = %s", 
+            $flags, $msgText, $isWakeUp ? 'YES' : 'NO', $isNotify ? 'YES' : 'NO'), 'debug');
+
+        if ($isNotify) {
+            $this->log("Пользователь $fromEmail набирает сообщение (typing=" . ($msgText === '1' ? 'start' : 'stop') . ")...", 'debug');
+            $this->emit('typing_notification', ['from' => $fromEmail, 'typing' => ($msgText === '1')]);
             return;
         }
 
-        if ($msgText === '') {
+        if ($msgText === '' && !$isWakeUp) {
             return;
         }
 
@@ -1013,6 +1573,14 @@ class MRIMClient
         $isAuthReq = $proc['is_auth_request'];
 
         $this->log("PARSED INCOMING MESSAGE_RECV (0x1011) from $fromEmail (id=$msgId): $cleanText", 'info');
+
+        if ($isWakeUp) {
+            $this->log("Получен БУДИЛЬНИК (WakeUp) от $fromEmail!", 'warning');
+            $wakeUpData = MRIMWakeUp::processIncomingWakeUp($fromEmail, $cleanText, $flags)['data'];
+            $this->emit('wakeup', $wakeUpData);
+            $this->sendMessageAck($msgId, $fromEmail);
+            return;
+        }
 
         if ($isAuthReq) {
             $this->log("Получен запрос авторизации от $fromEmail!", 'info');
@@ -1096,6 +1664,17 @@ class MRIMClient
             $msgId = (int)$headers['msg-id'];
         }
 
+        // Extract Flags
+        $flags = 0;
+        if (isset($headers['x-mrim-flags'])) {
+            $flagsRaw = $headers['x-mrim-flags'];
+            if (strpos($flagsRaw, '0x') === 0) {
+                $flags = (int)hexdec($flagsRaw);
+            } else {
+                $flags = (int)$flagsRaw;
+            }
+        }
+
         // 3. Extract Content-Type, charset, Content-Transfer-Encoding
         $contentType = $headers['content-type'] ?? '';
         $charset = 'UTF-8';
@@ -1143,10 +1722,28 @@ class MRIMClient
             "- decoded hex: $decodedHex\n" .
             "- decoded UTF-8: $decodedUtf8", 'debug');
 
-        if ($fromEmail !== '' && $decodedUtf8 !== '') {
-            $proc = $this->processExtractedMessageText($decodedUtf8, $fromEmail);
+        $isWakeUp = MRIMWakeUp::isWakeUpMessage($flags, $decodedUtf8);
+
+        $this->log(sprintf(
+            "MESSAGE RECV FLAGS DEBUG:\nfrom=%s\nflags=0x%08X\nis_wakeup=%s\ntext=%s",
+            $fromEmail,
+            $flags,
+            $isWakeUp ? 'true' : 'false',
+            $decodedUtf8
+        ), 'debug');
+
+        if ($fromEmail !== '' && ($decodedUtf8 !== '' || $isWakeUp)) {
+            $proc = $this->processExtractedMessageText($decodedUtf8, $fromEmail, $flags);
             $cleanText = $proc['text'];
             $isAuthReq = $proc['is_auth_request'];
+
+            if ($isWakeUp) {
+                $this->log("Получен БУДИЛЬНИК (WakeUp) от $fromEmail в RECV2!", 'warning');
+                $wakeUpData = MRIMWakeUp::processIncomingWakeUp($fromEmail, $cleanText, $flags)['data'];
+                $this->emit('wakeup', $wakeUpData);
+                $this->sendMessageAck($msgId, $fromEmail);
+                return;
+            }
 
             if ($isAuthReq) {
                 $this->log("Получен запрос авторизации от $fromEmail в RECV2!", 'info');
@@ -1194,12 +1791,30 @@ class MRIMClient
             $msgText = '';
         }
 
-        if ($fromEmail !== '' && $msgText !== '') {
-            $proc = $this->processExtractedMessageText($msgText, $fromEmail);
+        $flags = 0;
+        $isWakeUp = MRIMWakeUp::isWakeUpMessage($flags, $msgText);
+
+        $this->log(sprintf(
+            "MESSAGE RECV FLAGS DEBUG:\nfrom=%s\nflags=0x%08X\nis_wakeup=%s\ntext=%s",
+            $fromEmail,
+            $flags,
+            $isWakeUp ? 'true' : 'false',
+            $msgText
+        ), 'debug');
+
+        if ($fromEmail !== '' && ($msgText !== '' || $isWakeUp)) {
+            $proc = $this->processExtractedMessageText($msgText, $fromEmail, $flags);
             $cleanText = $proc['text'];
             $isAuthReq = $proc['is_auth_request'];
 
             $this->log("PARSED INCOMING MESSAGE_RECV3 (0x1063) from $fromEmail: $cleanText", 'info');
+
+            if ($isWakeUp) {
+                $this->log("Получен БУДИЛЬНИК (WakeUp) от $fromEmail в RECV3!", 'warning');
+                $wakeUpData = MRIMWakeUp::processIncomingWakeUp($fromEmail, $cleanText, $flags)['data'];
+                $this->emit('wakeup', $wakeUpData);
+                return;
+            }
 
             if ($isAuthReq) {
                 $this->log("Получен запрос авторизации от $fromEmail в RECV3!", 'info');
@@ -1297,9 +1912,9 @@ class MRIMClient
             'text'   => $msgText,
         ]);
 
-        if (($flags & MRIMProtocol::MESSAGE_FLAG_NOTIFY) !== 0) {
-            $this->log("Пользователь $fromEmail набирает сообщение...", 'debug');
-            $this->emit('typing_notification', ['from' => $fromEmail]);
+        if (($flags & MRIMProtocol::MESSAGE_FLAG_NOTIFY) !== 0 && ($msgText === '1' || $msgText === '0')) {
+            $this->log("Пользователь $fromEmail набирает сообщение (typing=" . ($msgText === '1' ? 'start' : 'stop') . ")...", 'debug');
+            $this->emit('typing_notification', ['from' => $fromEmail, 'typing' => ($msgText === '1')]);
             return;
         }
 
@@ -1307,12 +1922,21 @@ class MRIMClient
             $proc = $this->processExtractedMessageText($msgText, $fromEmail, $flags);
             $cleanText = $proc['text'];
             $isAuthReq = $proc['is_auth_request'];
+            $isWakeUp = MRIMWakeUp::isWakeUpMessage($flags, $cleanText);
 
-            $this->log("PARSED MESSAGE FROM MESSAGE_ACK (0x1009) from $fromEmail: $cleanText", 'info');
+            $this->log("PARSED MESSAGE FROM MESSAGE_ACK (0x1009) from $fromEmail: $cleanText (is_wakeup=" . ($isWakeUp ? 'YES' : 'NO') . ")", 'info');
 
             // Send delivery acknowledgment back to server if msgId > 0
             if ($msgId > 0) {
                 $this->sendMessageAck($msgId, $fromEmail);
+            }
+
+            // Process incoming WakeUp alarm event
+            if ($isWakeUp) {
+                $this->log("Получен БУДИЛЬНИК (WakeUp) от $fromEmail в MESSAGE_ACK (0x1009)!", 'warning');
+                $wakeUpData = MRIMWakeUp::processIncomingWakeUp($fromEmail, $cleanText, $flags)['data'];
+                $this->emit('wakeup', $wakeUpData);
+                return;
             }
 
             if ($isAuthReq) {
@@ -1322,15 +1946,15 @@ class MRIMClient
                     'text' => $cleanText,
                     'nick' => $proc['sender_nick'],
                 ]);
+            } else {
+                $this->emit('message', [
+                    'from'            => $fromEmail,
+                    'text'            => $cleanText,
+                    'timestamp'       => time(),
+                    'is_auth_request' => $isAuthReq,
+                    'sender_nick'     => $proc['sender_nick'],
+                ]);
             }
-
-            $this->emit('message', [
-                'from'            => $fromEmail,
-                'text'            => $cleanText,
-                'timestamp'       => time(),
-                'is_auth_request' => $isAuthReq,
-                'sender_nick'     => $proc['sender_nick'],
-            ]);
         }
     }
 }

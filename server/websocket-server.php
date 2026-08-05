@@ -319,6 +319,12 @@ class MRIMWebServer
                 'js'   => 'application/javascript; charset=utf-8',
                 'ico'  => 'image/x-icon',
                 'png'  => 'image/png',
+                'gif'  => 'image/gif',
+                'jpg'  => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'wav'  => 'audio/wav',
+                'mp3'  => 'audio/mpeg',
+                'ogg'  => 'audio/ogg',
             ];
             $contentType = $mimeTypes[$ext] ?? 'application/octet-stream';
             $content = file_get_contents($filePath);
@@ -535,6 +541,13 @@ class MRIMWebServer
                 $reason = trim($command['reason'] ?? '');
                 if ($email !== '') {
                     $mrimClient->requestAuthorization($email, $reason);
+                }
+                break;
+
+            case 'send_wakeup':
+                $to = trim($command['to'] ?? '');
+                if ($to !== '' && $mrimClient) {
+                    $mrimClient->sendWakeUp($to);
                 }
                 break;
 

@@ -650,6 +650,7 @@ body {
 
 /* Bottom Message Send Form */
 .send-box {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -657,6 +658,93 @@ body {
     background-color: #ffffff;
     border-top: 1px solid #d0d8e0;
     flex-shrink: 0;
+}
+
+/* Smile Picker Popup */
+.smile-picker-popup {
+    position: absolute;
+    bottom: 100%;
+    left: 12px;
+    margin-bottom: 6px;
+    width: 290px;
+    max-width: calc(100% - 24px);
+    background-color: #ffffff;
+    border: 1px solid #3b5998;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    border-radius: 0 !important;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.smile-picker-popup.hidden {
+    display: none !important;
+}
+
+.smile-picker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    background-color: #e8ecef;
+    border-bottom: 1px solid #d0d8e0;
+    font-weight: bold;
+    font-size: 11px;
+    color: #2b3a4a;
+    user-select: none;
+}
+
+.smile-picker-close {
+    background: transparent;
+    border: none;
+    font-size: 16px;
+    line-height: 1;
+    color: #7a8a9a;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.smile-picker-close:hover {
+    color: #cc0000;
+}
+
+.smile-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+    gap: 4px;
+    padding: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #f8fafc;
+}
+
+.smile-picker-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background-color: #ffffff;
+    border: 1px solid #d0d8e0;
+    border-radius: 0 !important;
+    cursor: pointer;
+    padding: 2px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.smile-picker-item:hover {
+    background-color: #e1ebf5;
+    border-color: #3b5998;
+    transform: scale(1.15);
+    z-index: 2;
+}
+
+.smile-picker-item img {
+    max-width: 24px;
+    max-height: 24px;
+    pointer-events: none;
+    user-select: none;
 }
 
 .send-input-row {
@@ -688,7 +776,8 @@ body {
     color: #1c252e;
 }
 
-.send-box textarea {
+.send-box textarea,
+.send-box .message-input {
     flex: 1;
     min-height: 32px;
     height: 32px;
@@ -703,11 +792,38 @@ body {
     background-color: #f8fafc;
     box-sizing: border-box;
     transition: border-color 0.15s, background-color 0.15s;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
-.send-box textarea:focus {
+.send-box textarea:focus,
+.send-box .message-input:focus {
     border-color: #3b5998;
     background-color: #ffffff;
+}
+
+.send-box .message-input[contenteditable="false"] {
+    background-color: #f0f0f0;
+    color: #888888;
+    cursor: not-allowed;
+}
+
+.send-box .message-input:empty::before {
+    content: attr(placeholder);
+    color: #8f9bb3;
+    pointer-events: none;
+    display: block;
+}
+
+.mrim-smile-input {
+    width: 18px;
+    height: 18px;
+    vertical-align: -3px;
+    display: inline-block;
+    margin: 0 1px;
+    user-select: none;
+    pointer-events: none;
 }
 
 .send-buttons {
@@ -969,3 +1085,24 @@ body {
         max-width: 90%;
     }
 }
+
+/* WakeUp Message Shake Animation */
+@keyframes wakeup-shake {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    15% { transform: translate(-5px, 4px) rotate(-1.5deg); }
+    30% { transform: translate(5px, -4px) rotate(1.5deg); }
+    45% { transform: translate(-4px, -3px) rotate(-1deg); }
+    60% { transform: translate(4px, 3px) rotate(1deg); }
+    75% { transform: translate(-2px, 2px) rotate(-0.5deg); }
+    90% { transform: translate(2px, -1px) rotate(0.5deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.shake-effect {
+    animation: wakeup-shake 0.25s ease-in-out 3;
+}
+
+.message-item.wakeup-message {
+    /* Retains standard message appearance */
+}
+

@@ -35,11 +35,15 @@
 426: 'shok.gif',
 427: 'shout.gif',
 428: 'smile.gif',
-429: 'unknow.gif',
+429: 'unknw.gif',
 430: 'wacko2.gif',
 431: 'wink.gif',
 432: 'yahoo.gif'
     };
+
+    // Export smile map and path globally for the smile picker UI
+    window.smileMap = smileMap;
+    window.SMILE_PATH = SMILE_PATH;
 
     const smileRegex = /<SMILE>\s*id=(\d+)\s+alt='([^']*)'\s*<\/SMILE>/gi;
 

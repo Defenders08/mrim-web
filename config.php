@@ -18,7 +18,7 @@ return [
     'server_port' => 3000,
 
     // MRIM client identification string sent during CS_LOGIN2
-    'mrim_client_name' => 'client="mrim-web-client 1.0"',
+    'mrim_client_name' => 'client="magent" version="5.10" build="3850"',
 
     // Default Ping interval in seconds (will also obey server-provided ping period)
     'ping_interval' => 30,
