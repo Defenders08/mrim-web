@@ -220,15 +220,26 @@ class MRIMClient
                  . MRIMProtocol::encodeUint32($userFeatureMask) // user_feature_mask
                  . MRIMProtocol::encodeLPS($lang); // lang
 
+        $maskedPayload = MRIMProtocol::encodeLPS($this->email)
+                       . MRIMProtocol::encodeLPS(str_repeat('*', strlen($this->password)))
+                       . MRIMProtocol::encodeUint32($this->status)
+                       . MRIMProtocol::encodeLPS($clientName)
+                       . MRIMProtocol::encodeUint32($featureMask)
+                       . MRIMProtocol::encodeLPS('')
+                       . MRIMProtocol::encodeLPS('')
+                       . MRIMProtocol::encodeLPS('')
+                       . MRIMProtocol::encodeUint32($userFeatureMask)
+                       . MRIMProtocol::encodeLPS($lang);
+
         $supportsWakeUpBool = (($featureMask & MRIMWakeUp::FEATURE_FLAG_WAKEUP) !== 0) ? 'true' : 'false';
         $this->log(sprintf(
             "LOGIN2 CAPABILITY DEBUG:\nfeature_mask=0x%08X\nsupports_wakeup=%s\nraw_payload=%s",
             $featureMask,
             $supportsWakeUpBool,
-            bin2hex($payload)
+            bin2hex($maskedPayload)
         ), 'debug');
 
-        $this->log("LOGIN2 Full HEX Payload: " . bin2hex($payload));
+        $this->log("LOGIN2 Full HEX Payload: " . bin2hex($maskedPayload));
 
         $this->log(sprintf(
             "LOGIN2 DEBUG:\nemail=%s\npassword_length=%d\nstatus=%d\nclientName=%s\nfeature_mask=0x%08X\nxstatus_uri=%s\nxstatus_title=%s\nxstatus_desc=%s\nuser_feature_mask=0x%08X\nlang=%s",
@@ -559,8 +570,9 @@ class MRIMClient
             if ($curr + 4 <= $pLen) {
                 $lLen = unpack('V', substr($payload, $curr, 4))[1];
                 $str = substr($payload, $curr + 4, $lLen);
+                $maskedHex = bin2hex(substr($payload, $curr, 4)) . str_repeat('2a', $lLen);
                 $out .= sprintf("0x%02X - 0x%02X [%d b] payload.password: LPS(len=%d, str='***') HEX=%s\n", 
-                    $pOffset + $curr, $pOffset + $curr + 4 + $lLen - 1, 4 + $lLen, $lLen, bin2hex(substr($payload, $curr, 4 + $lLen)));
+                    $pOffset + $curr, $pOffset + $curr + 4 + $lLen - 1, 4 + $lLen, $lLen, $maskedHex);
                 $curr += 4 + $lLen;
             }
             if ($curr + 4 <= $pLen) {

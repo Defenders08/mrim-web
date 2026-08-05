@@ -59,30 +59,47 @@
         const nodes = [];
 
         while (walker.nextNode()) {
-            if (walker.currentNode.nodeValue.includes('<SMILE>')) {
+            if (walker.currentNode.nodeValue && walker.currentNode.nodeValue.includes('<SMILE>')) {
                 nodes.push(walker.currentNode);
             }
         }
 
         nodes.forEach(node => {
+            const text = node.nodeValue;
+            const container = document.createDocumentFragment();
+            let lastIndex = 0;
+            let match;
+            smileRegex.lastIndex = 0;
 
-            const span = document.createElement('span');
-
-            span.innerHTML = node.nodeValue.replace(
-                smileRegex,
-                (match, id, alt) => {
-
-                    const file = smileMap[id];
-
-                    if (!file) {
-                        return alt;
-                    }
-
-                    return `<img class="mrim-smile" src="${SMILE_PATH}${file}" alt="${alt}" title="${alt}" draggable="false">`;
+            while ((match = smileRegex.exec(text)) !== null) {
+                if (match.index > lastIndex) {
+                    container.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
                 }
-            );
 
-            node.replaceWith(span);
+                const id = match[1];
+                const alt = match[2] || '';
+                const file = smileMap[id];
+
+                if (file) {
+                    const img = document.createElement('img');
+                    img.className = 'mrim-smile';
+                    img.src = `${SMILE_PATH}${file}`;
+                    img.alt = alt;
+                    img.title = alt;
+                    img.draggable = false;
+                    container.appendChild(img);
+                } else {
+                    container.appendChild(document.createTextNode(alt || match[0]));
+                }
+
+                lastIndex = smileRegex.lastIndex;
+            }
+
+            if (lastIndex < text.length) {
+                container.appendChild(document.createTextNode(text.substring(lastIndex)));
+            }
+
+            node.replaceWith(container);
         });
     }
 

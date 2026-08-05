@@ -310,8 +310,9 @@ class MRIMWebServer
             return;
         }
 
+        $realPublicDir = rtrim(realpath($this->publicDir) ?: $this->publicDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $filePath = realpath($this->publicDir . $path);
-        if ($filePath && strpos($filePath, $this->publicDir) === 0 && is_file($filePath)) {
+        if ($filePath && strpos($filePath, $realPublicDir) === 0 && is_file($filePath)) {
             $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
             $mimeTypes = [
                 'html' => 'text/html; charset=utf-8',
@@ -523,7 +524,7 @@ class MRIMWebServer
 
             case 'authorize_contact':
                 $email = trim($command['email'] ?? '');
-                if ($email !== '') {
+                if ($email !== '' && $mrimClient->getState() === 'authenticated') {
                     $mrimClient->authorizeContact($email);
                 }
                 break;
@@ -531,7 +532,7 @@ class MRIMWebServer
             case 'add_contact':
                 $email = trim($command['email'] ?? '');
                 $nickname = trim($command['nickname'] ?? '');
-                if ($email !== '') {
+                if ($email !== '' && $mrimClient->getState() === 'authenticated') {
                     $mrimClient->addContact($email, $nickname);
                 }
                 break;
@@ -539,14 +540,14 @@ class MRIMWebServer
             case 'request_authorization':
                 $email = trim($command['email'] ?? '');
                 $reason = trim($command['reason'] ?? '');
-                if ($email !== '') {
+                if ($email !== '' && $mrimClient->getState() === 'authenticated') {
                     $mrimClient->requestAuthorization($email, $reason);
                 }
                 break;
 
             case 'send_wakeup':
                 $to = trim($command['to'] ?? '');
-                if ($to !== '' && $mrimClient) {
+                if ($to !== '' && $mrimClient && $mrimClient->getState() === 'authenticated') {
                     $mrimClient->sendWakeUp($to);
                 }
                 break;

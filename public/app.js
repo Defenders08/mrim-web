@@ -5,6 +5,19 @@
  * commands and binary packets to the Mail.Ru Instant Messenger (mrim.su) server.
  */
 
+/**
+ * Safely escape HTML entities to prevent XSS vulnerabilities
+ */
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // In-Memory state (no database required)
 const state = {
     ws: null,
@@ -619,7 +632,7 @@ function updateAuthUI(statusMessage) {
 
     if (emailPreview) {
         if (isAuth && state.myEmail) {
-            emailPreview.innerHTML = `В сети как: <strong class="user-email-accent">${state.myEmail}</strong>`;
+            emailPreview.innerHTML = `В сети как: <strong class="user-email-accent">${escapeHtml(state.myEmail)}</strong>`;
             emailPreview.className = 'user-email-preview authenticated';
             if (statusIndicator) {
                 statusIndicator.className = 'user-status-indicator status-online';
@@ -710,7 +723,7 @@ function applyAvatarWithFallbacks(imgElement, email, defaultSvgElement = null) {
 
     function getInitialSvgUri(str) {
         const username = str.split('@')[0] || str;
-        const initial = (username.charAt(0) || '?').toUpperCase();
+        const initial = escapeHtml((username.charAt(0) || '?').toUpperCase());
         const colors = ['#3b5998', '#0066cc', '#0088cc', '#2b579a', '#1e88e5', '#3949ab', '#5e35b1', '#00897b', '#43a047'];
         let hash = 0;
         for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -963,7 +976,7 @@ function renderChatHistory() {
 
             const title = document.createElement('div');
             title.className = 'auth-card-title';
-            title.innerHTML = `📬 <b>Запрос авторизации</b> от ${m.from}`;
+            title.innerHTML = `📬 <b>Запрос авторизации</b> от ${escapeHtml(m.from)}`;
 
             const btnApprove = document.createElement('button');
             btnApprove.type = 'button';
@@ -1165,10 +1178,28 @@ function setupMessageInput() {
             const map = window.smileMap || {};
             const path = window.SMILE_PATH || '/res/';
             const smileRegex = /<SMILE>\s*id=(\d+)\s+alt='([^']*)'\s*<\/SMILE>/gi;
-            let html = val.replace(smileRegex, (match, id, alt) => {
+
+            let html = '';
+            let lastIndex = 0;
+            let match;
+            smileRegex.lastIndex = 0;
+
+            while ((match = smileRegex.exec(val)) !== null) {
+                if (match.index > lastIndex) {
+                    html += escapeHtml(val.substring(lastIndex, match.index));
+                }
+                const id = match[1];
+                const alt = match[2] || '';
                 const fileName = map[id] || alt || 'smile.gif';
-                return `<img src="${path}${fileName}" data-smile-id="${id}" data-smile-alt="${alt}" class="mrim-smile-input" draggable="false" alt="${alt}">`;
-            });
+                const safeAlt = escapeHtml(alt);
+                const safeFileName = escapeHtml(fileName);
+                html += `<img src="${path}${safeFileName}" data-smile-id="${id}" data-smile-alt="${safeAlt}" class="mrim-smile-input" draggable="false" alt="${safeAlt}">`;
+                lastIndex = smileRegex.lastIndex;
+            }
+            if (lastIndex < val.length) {
+                html += escapeHtml(val.substring(lastIndex));
+            }
+
             html = html.replace(/\n/g, '<br>');
             el.messageInput.innerHTML = html;
         },
