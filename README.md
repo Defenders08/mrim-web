@@ -1,6 +1,9 @@
 # MRIM WebSocket Gateway
 
-<img width="875" height="699" alt="screen" src="https://github.com/user-attachments/assets/cd98391c-cdeb-4a36-bfbd-24489abae2c8" />
+<img width="869" height="600" alt="screen" src="https://github.com/user-attachments/assets/5846b910-cc84-4de1-8db3-8ca18c148e18" />
+
+
+
 
 Open-source проект для работы с протоколом **MRIM (Mail.Ru Instant Messenger)** через современный WebSocket-интерфейс.
 
@@ -49,16 +52,3 @@ MRIM Server
 ```bash
 php server/websocket-server.php
 ```
-
-### Запуск через npm / node (PaaS)
-```bash
-npm install
-npm start
-```
-
-## Обновления веб-интерфейса
-
-* **Адаптивный дизайн**: Полноценная адаптация под мобильные устройства и планшеты (до 768px и 480px).
-* **Мобильные вкладки**: Автоматическое переключение между вкладками «Контакты» и «Чат» на узких экранах.
-* **Сохранение функционала**: Полное сохранение оригинального дизайна Mail.Ru Агента и WebSocket взаимодействия с PHP бэкендом.
-

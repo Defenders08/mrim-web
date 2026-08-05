@@ -14,6 +14,7 @@ const state = {
     contacts: {},       // email -> { email, nickname, status, unread }
     activeContact: null,// currently selected contact email
     messages: {},       // email -> [ { from, text, timestamp, isMe } ]
+    soundEnabled: true, // sound notifications toggle
 };
 
 // DOM Elements
@@ -38,6 +39,7 @@ const el = {
     chatHeaderActions:document.getElementById('chat-header-actions'),
     btnAuthorizeActive:document.getElementById('btn-authorize-active'),
     btnWakeupActive:   document.getElementById('btn-wakeup-active'),
+    btnSoundToggle:    document.getElementById('btn-sound-toggle'),
     typingIndicator:  document.getElementById('typing-indicator'),
     chatHistory:  document.getElementById('chat-history'),
     sendForm:     document.getElementById('send-form'),
@@ -57,8 +59,9 @@ function connectWebSocket() {
 
     logToConsole(`Подключение к WebSocket серверу (${wsUrl})...`, 'info');
     if (el.wsStatusText) {
-        el.wsStatusText.textContent = '• WebSocket: Подключение...';
-        el.wsStatusText.style.color = '#ffaa00';
+        el.wsStatusText.textContent = '';
+        el.wsStatusText.title = 'WebSocket: Подключение...';
+        el.wsStatusText.style.backgroundColor = '#ffaa00';
     }
 
     const ws = new WebSocket(wsUrl);
@@ -67,8 +70,9 @@ function connectWebSocket() {
     ws.onopen = () => {
         state.wsConnected = true;
         if (el.wsStatusText) {
-            el.wsStatusText.textContent = '• WebSocket: Подключено';
-            el.wsStatusText.style.color = '#00cc00';
+            el.wsStatusText.textContent = '';
+            el.wsStatusText.title = 'WebSocket: Подключено';
+            el.wsStatusText.style.backgroundColor = '#00cc00';
         }
         logToConsole('WebSocket соединение установлено.', 'info');
     };
@@ -86,8 +90,9 @@ function connectWebSocket() {
     ws.onclose = () => {
         state.wsConnected = false;
         if (el.wsStatusText) {
-            el.wsStatusText.textContent = '• WebSocket: Отключено (реконнект...)';
-            el.wsStatusText.style.color = '#ff0000';
+            el.wsStatusText.textContent = '';
+            el.wsStatusText.title = 'WebSocket: Отключено (реконнект...)';
+            el.wsStatusText.style.backgroundColor = '#ff0000';
         }
         logToConsole('WebSocket соединение закрыто. Повторная попытка через 3 сек...', 'warning');
         setTimeout(connectWebSocket, 3000);
@@ -391,6 +396,106 @@ function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, send
         state.contacts[fromEmail].unread = (state.contacts[fromEmail].unread || 0) + 1;
     }
     renderContacts();
+
+    if (!isWakeUp) {
+        playIncomingSound();
+    }
+}
+
+/**
+ * Pre-instantiated audio objects for zero-latency sound effects
+ */
+const incomingAudio = new Audio('/res/vk1.wav');
+const outgoingAudio = new Audio('/res/vk1.wav');
+const alarmAudio = new Audio('/res/alarm.wav');
+incomingAudio.preload = 'auto';
+outgoingAudio.preload = 'auto';
+alarmAudio.preload = 'auto';
+
+/**
+ * Play sound for incoming message
+ */
+function playIncomingSound() {
+    if (!state.soundEnabled) return;
+    try {
+        incomingAudio.currentTime = 0;
+        const playPromise = incomingAudio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(() => {
+                playWebAudioTone([587.33, 880], [0.12, 0.18], 'sine');
+            });
+        }
+    } catch (e) {
+        playWebAudioTone([587.33, 880], [0.12, 0.18], 'sine');
+    }
+}
+
+/**
+ * Play sound for outgoing message
+ */
+function playOutgoingSound() {
+    if (!state.soundEnabled) return;
+    try {
+        outgoingAudio.currentTime = 0;
+        const playPromise = outgoingAudio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(() => {
+                playWebAudioTone([660, 990], [0.08, 0.12], 'triangle');
+            });
+        }
+    } catch (e) {
+        playWebAudioTone([660, 990], [0.08, 0.12], 'triangle');
+    }
+}
+
+/**
+ * Play sound for alarm/wakeup
+ */
+function playAlarmSound() {
+    if (!state.soundEnabled) return;
+    try {
+        alarmAudio.currentTime = 0;
+        const playPromise = alarmAudio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(() => {
+                playWebAudioAlarm();
+            });
+        }
+    } catch (e) {
+        playWebAudioAlarm();
+    }
+}
+
+/**
+ * Fallback Web Audio API synthesizer for notification sounds
+ */
+function playWebAudioTone(frequencies = [587.33, 880], durations = [0.1, 0.15], type = 'sine') {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        let now = ctx.currentTime;
+
+        frequencies.forEach((freq, index) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            const dur = durations[index] || 0.1;
+
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, now);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(now);
+            osc.stop(now + dur);
+            now += dur * 0.8;
+        });
+    } catch (e) {
+        console.warn('AudioContext tone error:', e);
+    }
 }
 
 /**
@@ -400,19 +505,8 @@ function triggerWakeUpEffect(from, text, timestamp) {
     if (!from) return;
     const fromEmail = from.toLowerCase().trim();
 
-    // 1. Play audio alarm sound from public/res (alarm.wav or wakeup.wav) with Web Audio API fallback
-    try {
-        const audio = new Audio('/res/alarm.wav');
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(() => {
-                // Audio autoplay policy fallback to Web Audio API synthesizer
-                playWebAudioAlarm();
-            });
-        }
-    } catch (e) {
-        playWebAudioAlarm();
-    }
+    // 1. Play audio alarm sound instantly from preloaded audio
+    playAlarmSound();
 
     // 2. Insert alarm message into chat (with shake effect target on the message bubble)
     const alarmText = '🔔 Собеседник отправил будильник!';
@@ -449,21 +543,33 @@ function playWebAudioAlarm() {
 }
 
 /**
- * Handle outgoing message echo
+ * Handle outgoing message echo or optimistic update
  */
 function handleOutgoingMessage(rawTo, text, timestamp) {
     if (!rawTo) return;
     const toEmail = rawTo.toLowerCase().trim();
     const now = timestamp ? (timestamp > 1e11 ? timestamp : timestamp * 1000) : Date.now();
+    const msgTs = timestamp ? (timestamp > 1e11 ? Math.floor(timestamp / 1000) : timestamp) : Math.floor(Date.now() / 1000);
 
     if (!state.messages[toEmail]) {
         state.messages[toEmail] = [];
     }
 
+    // Deduplicate if identical outgoing message was already added optimistically
+    const isDuplicate = state.messages[toEmail].some(m => {
+        if (!m.isMe || m.text !== text) return false;
+        const mTs = m.timestamp > 1e11 ? Math.floor(m.timestamp / 1000) : m.timestamp;
+        return Math.abs(mTs - msgTs) <= 5;
+    });
+
+    if (isDuplicate) {
+        return;
+    }
+
     state.messages[toEmail].push({
         from: state.myEmail || 'Я',
         text: text,
-        timestamp: timestamp || Math.floor(Date.now() / 1000),
+        timestamp: msgTs,
         isMe: true
     });
 
@@ -499,6 +605,7 @@ function updateAuthUI(statusMessage) {
     if (el.messageInput) el.messageInput.disabled = !isAuth || !state.activeContact;
     if (el.btnSend) el.btnSend.disabled = !isAuth || !state.activeContact;
     if (el.btnSmiles) el.btnSmiles.disabled = !isAuth || !state.activeContact;
+    if (el.btnWakeupActive) el.btnWakeupActive.disabled = !isAuth || !state.activeContact;
 
     if (!isAuth || !state.activeContact) {
         const smilePopup = document.getElementById('smile-picker-popup');
@@ -788,6 +895,7 @@ function selectContact(rawEmail) {
     el.messageInput.disabled = (state.mrimState !== 'authenticated');
     el.btnSend.disabled = (state.mrimState !== 'authenticated');
     if (el.btnSmiles) el.btnSmiles.disabled = (state.mrimState !== 'authenticated');
+    if (el.btnWakeupActive) el.btnWakeupActive.disabled = (state.mrimState !== 'authenticated');
 
     if (el.chatHeaderActions) {
         el.chatHeaderActions.classList.toggle('hidden', state.mrimState !== 'authenticated');
@@ -999,9 +1107,21 @@ if (el.btnWakeupActive) {
             logToConsole('Ошибка: Вы должны войти в систему, чтобы отправлять Будильник.', 'error');
             return;
         }
+        playAlarmSound();
         sendWsCommand('send_wakeup', { to: state.activeContact });
         handleOutgoingMessage(state.activeContact, '🔔 Вы отправили БУДИЛЬНИК!', Math.floor(Date.now() / 1000));
         logToConsole(`🔔 Отправлен БУДИЛЬНИК (WakeUp) контакту ${state.activeContact}`, 'info');
+    });
+}
+
+if (el.btnSoundToggle) {
+    el.btnSoundToggle.addEventListener('click', () => {
+        state.soundEnabled = !state.soundEnabled;
+        el.btnSoundToggle.textContent = state.soundEnabled ? 'Звук: Вкл' : 'Звук: Выкл';
+        logToConsole(`Звуковые уведомления ${state.soundEnabled ? 'включены' : 'выключены'}`, 'info');
+        if (state.soundEnabled) {
+            playOutgoingSound();
+        }
     });
 }
 
@@ -1091,6 +1211,12 @@ el.sendForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = el.messageInput.value;
     if (!text || !state.activeContact) return;
+
+    // Play sound immediately when sending
+    playOutgoingSound();
+
+    // Optimistically render message in UI immediately
+    handleOutgoingMessage(state.activeContact, text, Math.floor(Date.now() / 1000));
 
     sendWsCommand('send_message', {
         to: state.activeContact,

@@ -11,62 +11,7 @@
     <!-- Top Bar: Title & Server Status -->
     <div class="title-bar">
         <span class="title-text">Mail.Ru Агент — MRIM Web Client (mrim.su)</span>
-        <span class="server-status" id="ws-status-text">• WebSocket: Подключение...</span>
-    </div>
-
-    <!-- Login Section -->
-    <div class="panel login-panel collapsed" id="login-panel">
-        <form id="login-form">
-            <!-- Compact Header Bar (Always Visible) -->
-            <div class="login-header-bar">
-                <div class="login-header-info">
-                    <div class="user-avatar-badge">
-                        <div class="user-avatar-img-wrap">
-                            <img id="user-avatar-img" class="user-avatar-img hidden" alt="Avatar" />
-                            <svg class="user-avatar-svg" id="user-avatar-default" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z" fill="#4B6375"/>
-                                <path d="M12 14C7.58172 14 4 17.5817 4 22H20C20 17.5817 16.4183 14 12 14Z" fill="#4B6375"/>
-                            </svg>
-                        </div>
-                        <span class="user-status-indicator status-offline" id="user-status-indicator" title="Статус подключения"></span>
-                    </div>
-                    <span class="user-email-preview" id="user-email-preview">Не авторизован</span>
-                </div>
-                <div class="login-header-actions">
-                    <div class="panel-buttons-group">
-                        <button type="submit" class="btn btn-login" id="btn-login">Войти в Агент</button>
-                        <button type="button" class="btn btn-logout hidden" id="btn-logout">Выйти</button>
-                        <button type="button" class="btn btn-reconnect" id="btn-reconnect" title="Переподключиться к серверу">Reconnect</button>
-                        <button type="button" class="btn btn-ping" id="btn-ping" title="Отправить Ping на сервер">Ping</button>
-                    </div>
-                    <button type="button" class="btn btn-toggle" id="btn-toggle-login" title="Развернуть панель" aria-expanded="false" aria-label="Развернуть/Свернуть панель">
-                        <span class="toggle-chevron">▼</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Expandable Detailed Form Content -->
-            <div class="login-expandable-content" id="login-expandable-content">
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label for="login-email">Логин (E-mail):</label>
-                        <input type="text" id="login-email" placeholder="user@mrim.su или user@mail.ru" required>
-                    </div>
-                    <div class="form-field">
-                        <label for="login-pass">Пароль:</label>
-                        <input type="password" id="login-pass" required>
-                    </div>
-                    <div class="form-field">
-                        <label for="login-status">Статус:</label>
-                        <select id="login-status">
-                            <option value="1">В сети (Online)</option>
-                            <option value="2">Отошел (Away)</option>
-                            <option value="2147483648">Невидимый (Invisible)</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </form>
+        <span class="ws-status-square" id="ws-status-text" title="WebSocket: Подключение..."></span>
     </div>
 
     <!-- Mobile Workspace Tabs (visible on <=768px) -->
@@ -79,6 +24,63 @@
     <div class="workspace mobile-view-contacts" id="workspace">
         <!-- Left Column: Contact List -->
         <div class="contacts-panel panel">
+            <!-- Login / Authorization Section (Left Sidebar Top) -->
+            <div class="panel login-panel collapsed" id="login-panel">
+                <form id="login-form">
+                    <!-- Compact Header Bar (Always Visible) -->
+                    <div class="login-header-bar">
+                        <div class="login-header-top">
+                            <div class="login-header-info">
+                                <div class="user-avatar-badge">
+                                    <div class="user-avatar-img-wrap">
+                                        <img id="user-avatar-img" class="user-avatar-img hidden" alt="Avatar" />
+                                        <svg class="user-avatar-svg" id="user-avatar-default" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z" fill="#4B6375"/>
+                                            <path d="M12 14C7.58172 14 4 17.5817 4 22H20C20 17.5817 16.4183 14 12 14Z" fill="#4B6375"/>
+                                        </svg>
+                                    </div>
+                                    <span class="user-status-indicator status-offline" id="user-status-indicator" title="Статус подключения"></span>
+                                </div>
+                                <span class="user-email-preview" id="user-email-preview">Не авторизован</span>
+                            </div>
+                            <button type="button" class="btn btn-toggle" id="btn-toggle-login" title="Развернуть панель" aria-expanded="false" aria-label="Развернуть/Свернуть панель">
+                                <span class="toggle-chevron">▼</span>
+                            </button>
+                        </div>
+                        <div class="login-header-actions">
+                            <div class="panel-buttons-group">
+                                <button type="submit" class="btn btn-login" id="btn-login">Войти</button>
+                                <button type="button" class="btn btn-logout hidden" id="btn-logout">Выйти</button>
+                                <button type="button" class="btn btn-reconnect" id="btn-reconnect" title="Переподключиться к серверу">Reconnect</button>
+                                <button type="button" class="btn btn-ping" id="btn-ping" title="Отправить Ping на сервер">Ping</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Expandable Detailed Form Content -->
+                    <div class="login-expandable-content" id="login-expandable-content">
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label for="login-email">Логин (E-mail):</label>
+                                <input type="text" id="login-email" placeholder="user@mrim.su или user@mail.ru" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="login-pass">Пароль:</label>
+                                <input type="password" id="login-pass" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="login-status">Статус:</label>
+                                <select id="login-status">
+                                    <option value="1">В сети (Online)</option>
+                                    <option value="2">Отошел (Away)</option>
+                                    <option value="2147483648">Невидимый (Invisible)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
             <div class="panel-header">
                 <b>Контакты</b>
                 <span id="contacts-count">(0)</span>
@@ -106,15 +108,12 @@
                         <img id="active-chat-avatar" class="chat-avatar active-chat-avatar hidden" alt="" />
                         <span id="active-chat-status-dot" class="contact-status-dot hidden"></span>
                     </div>
-                    <b>Чат:</b> <span id="current-chat-title">Выберите контакт из списка</span>
+                    <b class="chat-title-prefix">Чат:</b> <span id="current-chat-title">Выберите контакт из списка</span>
                     <span id="typing-indicator" class="typing-status hidden">✍️ печатает...</span>
                 </div>
                 <div id="chat-header-actions" class="hidden">
-                    <button type="button" class="btn btn-small btn-auth" id="btn-wakeup-active" title="Отправить Будильник (потрясти окно и включить сирену у собеседника)">
-                        🔔 Разбудить
-                    </button>
                     <button type="button" class="btn btn-small btn-auth" id="btn-authorize-active" title="Отправить пакет авторизации (MRIM_CS_AUTHORIZE) этому контакту">
-                        🔓 Авторизовать
+                        Авторизовать
                     </button>
                 </div>
             </div>
@@ -143,8 +142,9 @@
                 </div>
                 <div class="send-toolbar">
                     <button type="button" class="btn btn-small btn-toolbar-stub" id="btn-smiles" title="Смайлики" disabled>Смайлики</button>
-                    <button type="button" class="btn btn-small btn-toolbar-stub" title="Будильник">Будильник</button>
+                    <button type="button" class="btn btn-small btn-toolbar-stub" id="btn-wakeup-active" title="Отправить Будильник (потрясти окно и включить сирену у собеседника)" disabled>Будильник</button>
                     <button type="button" class="btn btn-small btn-toolbar-stub" title="Медиа">Медиа</button>
+                    <button type="button" class="btn btn-small btn-toolbar-stub" id="btn-sound-toggle" title="Включить / выключить звук сообщений">Звук: Вкл</button>
                 </div>
             </form>
         </div>
