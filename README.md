@@ -52,9 +52,3 @@ MRIM Server
 ```bash
 php server/websocket-server.php
 ```
-
-### Запуск через npm / node (PaaS)
-```bash
-npm install
-npm start
-```
