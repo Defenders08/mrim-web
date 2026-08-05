@@ -31,6 +31,7 @@ const el = {
     contactsCount:document.getElementById('contacts-count'),
     contactsList: document.getElementById('contacts-list'),
     directTo:     document.getElementById('direct-to'),
+    directContactForm: document.getElementById('direct-contact-form'),
     btnSelectContact: document.getElementById('btn-select-contact'),
     btnAddContact:    document.getElementById('btn-add-contact'),
     currentChatTitle: document.getElementById('current-chat-title'),
@@ -53,16 +54,20 @@ function connectWebSocket() {
     const wsUrl = protocol + location.host + '/ws';
 
     logToConsole(`Подключение к WebSocket серверу (${wsUrl})...`, 'info');
-    el.wsStatusText.textContent = '• WebSocket: Подключение...';
-    el.wsStatusText.style.color = '#ffaa00';
+    if (el.wsStatusText) {
+        el.wsStatusText.textContent = '• WebSocket: Подключение...';
+        el.wsStatusText.style.color = '#ffaa00';
+    }
 
     const ws = new WebSocket(wsUrl);
     state.ws = ws;
 
     ws.onopen = () => {
         state.wsConnected = true;
-        el.wsStatusText.textContent = '• WebSocket: Подключено';
-        el.wsStatusText.style.color = '#00cc00';
+        if (el.wsStatusText) {
+            el.wsStatusText.textContent = '• WebSocket: Подключено';
+            el.wsStatusText.style.color = '#00cc00';
+        }
         logToConsole('WebSocket соединение установлено.', 'info');
     };
 
@@ -78,8 +83,10 @@ function connectWebSocket() {
 
     ws.onclose = () => {
         state.wsConnected = false;
-        el.wsStatusText.textContent = '• WebSocket: Отключено (реконнект...)';
-        el.wsStatusText.style.color = '#ff0000';
+        if (el.wsStatusText) {
+            el.wsStatusText.textContent = '• WebSocket: Отключено (реконнект...)';
+            el.wsStatusText.style.color = '#ff0000';
+        }
         logToConsole('WebSocket соединение закрыто. Повторная попытка через 3 сек...', 'warning');
         setTimeout(connectWebSocket, 3000);
     };
@@ -129,10 +136,8 @@ function handleServerEvent(type, data) {
                 state.activeContact = null;
                 renderContacts();
                 renderChatHistory();
-                el.authStatusBar.textContent = 'Статус: Не в сети. Введите логин и пароль для входа.';
-                el.authStatusBar.style.color = '#333333';
             }
-            updateAuthUI();
+            updateAuthUI('Не в сети');
             break;
 
         case 'status_log':
@@ -152,11 +157,18 @@ function handleServerEvent(type, data) {
             }
             state.mrimState = 'authenticated';
             state.myEmail = newEmail;
-            el.authStatusBar.textContent = `В сети как: ${state.myEmail}`;
-            el.authStatusBar.style.color = '#006600';
             renderContacts();
             renderChatHistory();
             updateAuthUI();
+
+            // Auto collapse login panel on successful login
+            const loginPanelEl = document.getElementById('login-panel');
+            const toggleBtnEl = document.getElementById('btn-toggle-login');
+            if (loginPanelEl && toggleBtnEl) {
+                loginPanelEl.classList.remove('expanded');
+                loginPanelEl.classList.add('collapsed');
+                toggleBtnEl.setAttribute('aria-expanded', 'false');
+            }
             logToConsole(`Успешная авторизация на сервере mrim.su как ${state.myEmail}!`, 'info');
             break;
 
@@ -168,9 +180,7 @@ function handleServerEvent(type, data) {
             state.activeContact = null;
             renderContacts();
             renderChatHistory();
-            el.authStatusBar.textContent = `Ошибка входа: ${data.reason}`;
-            el.authStatusBar.style.color = '#cc0000';
-            updateAuthUI();
+            updateAuthUI(`Ошибка входа: ${data.reason}`);
             logToConsole(`Ошибка авторизации MRIM: ${data.reason}`, 'error');
             break;
 
@@ -183,9 +193,7 @@ function handleServerEvent(type, data) {
             state.activeContact = null;
             renderContacts();
             renderChatHistory();
-            el.authStatusBar.textContent = 'Отключено от сервера MRIM.';
-            el.authStatusBar.style.color = '#666666';
-            updateAuthUI();
+            updateAuthUI('Отключено от сервера MRIM.');
             logToConsole(`Отключение MRIM: ${data.reason || 'Завершение сессии'}`, 'warning');
             break;
 
@@ -415,16 +423,64 @@ function handleOutgoingMessage(rawTo, text, timestamp) {
 /**
  * Update UI controls based on authentication state
  */
-function updateAuthUI() {
+function updateAuthUI(statusMessage) {
     const isAuth = (state.mrimState === 'authenticated');
-    el.btnLogin.classList.toggle('hidden', isAuth);
-    el.btnLogout.classList.toggle('hidden', !isAuth);
-    el.loginEmail.disabled = isAuth;
-    el.loginPass.disabled = isAuth;
-    el.loginStatus.disabled = isAuth;
+    if (el.btnLogin) el.btnLogin.classList.toggle('hidden', isAuth);
+    if (el.btnLogout) el.btnLogout.classList.toggle('hidden', !isAuth);
+    if (el.loginEmail) el.loginEmail.disabled = isAuth;
+    if (el.loginPass) el.loginPass.disabled = isAuth;
+    if (el.loginStatus) el.loginStatus.disabled = isAuth;
 
-    el.messageInput.disabled = !isAuth || !state.activeContact;
-    el.btnSend.disabled = !isAuth || !state.activeContact;
+    if (el.messageInput) el.messageInput.disabled = !isAuth || !state.activeContact;
+    if (el.btnSend) el.btnSend.disabled = !isAuth || !state.activeContact;
+
+    const emailPreview = document.getElementById('user-email-preview');
+    const statusIndicator = document.getElementById('user-status-indicator');
+    const avatarImg = document.getElementById('user-avatar-img');
+    const defaultSvg = document.getElementById('user-avatar-default');
+
+    if (emailPreview) {
+        if (isAuth && state.myEmail) {
+            emailPreview.innerHTML = `В сети как: <strong class="user-email-accent">${state.myEmail}</strong>`;
+            emailPreview.className = 'user-email-preview authenticated';
+            if (statusIndicator) {
+                statusIndicator.className = 'user-status-indicator status-online';
+                statusIndicator.title = `Статус: В сети (${state.myEmail})`;
+            }
+            if (avatarImg) applyAvatarWithFallbacks(avatarImg, state.myEmail, defaultSvg);
+        } else if (statusMessage) {
+            emailPreview.textContent = statusMessage;
+            emailPreview.className = 'user-email-preview' + (statusMessage.includes('Ошибка') ? ' error' : '');
+            if (statusIndicator) {
+                statusIndicator.className = 'user-status-indicator ' + (statusMessage.includes('Подключение') ? 'status-away' : 'status-offline');
+                statusIndicator.title = statusMessage;
+            }
+            const currentEmail = state.myEmail || (el.loginEmail ? el.loginEmail.value.trim() : '');
+            if (avatarImg && currentEmail) {
+                applyAvatarWithFallbacks(avatarImg, currentEmail, defaultSvg);
+            } else if (avatarImg && defaultSvg) {
+                avatarImg.classList.add('hidden');
+                defaultSvg.classList.remove('hidden');
+            }
+        } else {
+            const loginInputVal = el.loginEmail ? el.loginEmail.value.trim() : '';
+            if (loginInputVal) {
+                emailPreview.textContent = `Логин: ${loginInputVal}`;
+                if (avatarImg) applyAvatarWithFallbacks(avatarImg, loginInputVal, defaultSvg);
+            } else {
+                emailPreview.textContent = 'Не авторизован';
+                if (avatarImg && defaultSvg) {
+                    avatarImg.classList.add('hidden');
+                    defaultSvg.classList.remove('hidden');
+                }
+            }
+            emailPreview.className = 'user-email-preview';
+            if (statusIndicator) {
+                statusIndicator.className = 'user-status-indicator status-offline';
+                statusIndicator.title = 'Статус: Не в сети';
+            }
+        }
+    }
 }
 
 /**
@@ -469,40 +525,86 @@ function applyAvatarWithFallbacks(imgElement, email, defaultSvgElement = null) {
         return;
     }
 
-    if (imgElement.dataset.currentEmail === cleanEmail && imgElement.src) {
-        return;
-    }
-    imgElement.dataset.currentEmail = cleanEmail;
-
-    const defaultSvgDataUri = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%238a9aa8"><path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z"/><path d="M12 14C7.58172 14 4 17.5817 4 22H20C20 17.5817 16.4183 14 12 14Z"/></svg>';
-
-    imgElement.onload = function() {
+    function showImage() {
         imgElement.classList.remove('hidden');
         if (defaultSvgElement) defaultSvgElement.classList.add('hidden');
+    }
+
+    function getInitialSvgUri(str) {
+        const username = str.split('@')[0] || str;
+        const initial = (username.charAt(0) || '?').toUpperCase();
+        const colors = ['#3b5998', '#0066cc', '#0088cc', '#2b579a', '#1e88e5', '#3949ab', '#5e35b1', '#00897b', '#43a047'];
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        const color = colors[Math.abs(hash) % colors.length];
+
+        const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="${color}"/><text x="50" y="50" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${initial}</text></svg>`;
+        return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgStr);
+    }
+
+    // If dataset email matches and src is set, ensure image is unhidden
+    if (imgElement.dataset.currentEmail === cleanEmail && imgElement.src) {
+        if (imgElement.complete) {
+            if (imgElement.naturalWidth > 0) {
+                showImage();
+            } else {
+                imgElement.src = getInitialSvgUri(cleanEmail);
+                showImage();
+            }
+        } else {
+            showImage();
+        }
+        return;
+    }
+
+    imgElement.dataset.currentEmail = cleanEmail;
+
+    imgElement.onload = function() {
+        showImage();
     };
 
     imgElement.onerror = function() {
-        if (defaultSvgElement) {
-            imgElement.classList.add('hidden');
-            defaultSvgElement.classList.remove('hidden');
-        } else {
-            imgElement.src = defaultSvgDataUri;
-            imgElement.classList.remove('hidden');
-        }
+        imgElement.onload = null;
+        imgElement.onerror = null;
+        imgElement.src = getInitialSvgUri(cleanEmail);
+        showImage();
     };
 
     imgElement.src = avatarUrl;
+
+    if (imgElement.complete) {
+        if (imgElement.naturalWidth > 0) {
+            showImage();
+        } else {
+            imgElement.src = getInitialSvgUri(cleanEmail);
+            showImage();
+        }
+    }
 }
 
 /**
  * Render Contacts list in left panel
  */
 function renderContacts() {
-    const keys = Object.keys(state.contacts);
-    el.contactsCount.textContent = `(${keys.length})`;
+    let keys = Object.keys(state.contacts);
+    if (el.contactsCount) {
+        el.contactsCount.textContent = `(${keys.length})`;
+    }
+
+    const filterText = (el.directTo ? el.directTo.value : '').trim().toLowerCase();
+    if (filterText) {
+        keys = keys.filter(email => {
+            const nick = (state.contacts[email]?.nickname || '').toLowerCase();
+            return email.toLowerCase().includes(filterText) || nick.includes(filterText);
+        });
+    }
 
     if (keys.length === 0) {
-        el.contactsList.innerHTML = '<div class="empty-list">Нет контактов (войдите в сеть)</div>';
+        if (filterText) {
+            el.contactsList.innerHTML = '<div class="empty-list">Контакты не найдены<br><small style="color:#778899">Используйте 💬 для чата или 👤+ для добавления</small></div>';
+        } else {
+            el.contactsList.innerHTML = '<div class="empty-list">Нет контактов (войдите в сеть)</div>';
+        }
         return;
     }
 
@@ -531,17 +633,27 @@ function renderContacts() {
         const left = document.createElement('div');
         left.className = 'contact-left';
 
+        const avatarBadge = document.createElement('div');
+        avatarBadge.className = 'contact-avatar-badge';
+
         const avatarImg = document.createElement('img');
         avatarImg.className = 'chat-avatar';
         avatarImg.alt = '';
         applyAvatarWithFallbacks(avatarImg, email);
+
+        const dot = document.createElement('span');
+        dot.className = 'contact-status-dot ' + getStatusClass(c.status);
+        dot.title = c.status_title || 'Статус: ' + c.status;
+
+        avatarBadge.appendChild(avatarImg);
+        avatarBadge.appendChild(dot);
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'contact-name';
         nameSpan.textContent = c.nickname || email;
         nameSpan.title = email;
 
-        left.appendChild(avatarImg);
+        left.appendChild(avatarBadge);
         left.appendChild(nameSpan);
         item.appendChild(left);
 
@@ -563,11 +675,6 @@ function renderContacts() {
             badge.textContent = c.unread;
             right.appendChild(badge);
         }
-
-        const dot = document.createElement('span');
-        dot.className = 'contact-status-dot ' + getStatusClass(c.status);
-        dot.title = c.status_title || 'Статус: ' + c.status;
-        right.appendChild(dot);
 
         item.appendChild(right);
 
@@ -593,11 +700,18 @@ function selectContact(rawEmail) {
     }
     state.contacts[email].unread = 0;
 
-    el.currentChatTitle.textContent = `${state.contacts[email].nickname} (${email})`;
+    if (el.currentChatTitle) {
+        el.currentChatTitle.textContent = `${state.contacts[email].nickname} (${email})`;
+    }
     
     const activeChatAvatar = document.getElementById('active-chat-avatar');
     if (activeChatAvatar) {
         applyAvatarWithFallbacks(activeChatAvatar, email);
+    }
+    const activeChatStatusDot = document.getElementById('active-chat-status-dot');
+    if (activeChatStatusDot && state.contacts[email]) {
+        activeChatStatusDot.className = 'contact-status-dot ' + getStatusClass(state.contacts[email].status);
+        activeChatStatusDot.classList.remove('hidden');
     }
 
     el.messageInput.disabled = (state.mrimState !== 'authenticated');
@@ -739,7 +853,7 @@ el.loginForm.addEventListener('submit', (e) => {
     const password = el.loginPass.value;
     const status = parseInt(el.loginStatus.value, 10) || 1;
 
-    el.authStatusBar.textContent = `Подключение к mrim.su...`;
+    updateAuthUI('Подключение к mrim.su...');
     sendWsCommand('login', { email, password, status });
 });
 
@@ -757,13 +871,32 @@ el.btnPing.addEventListener('click', () => {
     sendWsCommand('ping');
 });
 
-el.btnSelectContact.addEventListener('click', () => {
-    const email = el.directTo.value.trim();
-    if (email) {
-        selectContact(email);
-        el.directTo.value = '';
-    }
-});
+if (el.directTo) {
+    el.directTo.addEventListener('input', () => {
+        renderContacts();
+    });
+}
+
+if (el.directContactForm) {
+    el.directContactForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = el.directTo.value.trim();
+        if (email) {
+            selectContact(email);
+            el.directTo.value = '';
+            renderContacts();
+        }
+    });
+} else if (el.btnSelectContact) {
+    el.btnSelectContact.addEventListener('click', () => {
+        const email = el.directTo.value.trim();
+        if (email) {
+            selectContact(email);
+            el.directTo.value = '';
+            renderContacts();
+        }
+    });
+}
 
 if (el.btnAddContact) {
     el.btnAddContact.addEventListener('click', () => {
@@ -773,6 +906,7 @@ if (el.btnAddContact) {
             sendWsCommand('add_contact', { email, nickname: email });
             selectContact(email);
             el.directTo.value = '';
+            renderContacts();
         }
     });
 }
@@ -797,6 +931,13 @@ el.sendForm.addEventListener('submit', (e) => {
     });
 
     el.messageInput.value = '';
+    el.messageInput.style.height = '32px';
+});
+
+el.messageInput.addEventListener('input', () => {
+    el.messageInput.style.height = 'auto';
+    const newH = Math.min(Math.max(32, el.messageInput.scrollHeight), 96);
+    el.messageInput.style.height = newH + 'px';
 });
 
 el.messageInput.addEventListener('keydown', (e) => {
@@ -814,8 +955,41 @@ el.btnClearLogs.addEventListener('click', () => {
 window.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
     initLoginPanelToggle();
+    initLogsPanelToggle();
     initMobileNavigation();
 });
+
+// ==========================================
+// Collapsible Logs Panel Controls
+// ==========================================
+function initLogsPanelToggle() {
+    const logsPanel = document.getElementById('logs-panel');
+    const logsHeader = document.getElementById('logs-header');
+    const toggleBtn = document.getElementById('btn-toggle-logs');
+
+    if (!logsPanel || !toggleBtn) return;
+
+    function toggleLogs(e) {
+        if (e && e.target && e.target.id === 'btn-clear-logs') return; // Don't toggle if clearing logs
+        const isCollapsed = logsPanel.classList.contains('collapsed');
+        if (isCollapsed) {
+            logsPanel.classList.remove('collapsed');
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            toggleBtn.title = 'Свернуть лог';
+        } else {
+            logsPanel.classList.add('collapsed');
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            toggleBtn.title = 'Развернуть лог';
+        }
+    }
+
+    if (logsHeader) {
+        logsHeader.addEventListener('click', (e) => {
+            if (e.target.closest('#btn-clear-logs')) return;
+            toggleLogs(e);
+        });
+    }
+}
 
 // ==========================================
 // Compact / Expandable Login Panel Controls
@@ -824,51 +998,14 @@ function initLoginPanelToggle() {
     const loginPanel = document.getElementById('login-panel');
     const toggleBtn = document.getElementById('btn-toggle-login');
     const emailInput = document.getElementById('login-email');
-    const authStatus = document.getElementById('auth-status-bar');
-    const emailPreview = document.getElementById('user-email-preview');
-    const statusIndicator = document.getElementById('user-status-indicator');
     const btnLogin = document.getElementById('btn-login');
 
     if (!loginPanel || !toggleBtn) return;
 
-    function updateAvatar(emailStr) {
-        const avatarImg = document.getElementById('user-avatar-img');
-        const defaultSvg = document.getElementById('user-avatar-default');
-        if (!avatarImg || !defaultSvg) return;
-        applyAvatarWithFallbacks(avatarImg, emailStr, defaultSvg);
-    }
-
-    function updatePreviewText() {
-        if (!emailPreview) return;
-        let currentEmail = '';
-
-        if (authStatus && authStatus.textContent.includes('В сети как:')) {
-            const parts = authStatus.textContent.split('В сети как:');
-            currentEmail = parts[1].trim();
-            emailPreview.textContent = currentEmail;
-            emailPreview.classList.add('authenticated');
-            if (statusIndicator) {
-                statusIndicator.className = 'user-status-indicator status-online';
-                statusIndicator.title = 'Статус: В сети';
-            }
-        } else if (emailInput && emailInput.value.trim()) {
-            currentEmail = emailInput.value.trim();
-            emailPreview.textContent = currentEmail;
-            emailPreview.classList.remove('authenticated');
-            if (statusIndicator) {
-                statusIndicator.className = 'user-status-indicator status-offline';
-                statusIndicator.title = 'Статус: Не в сети';
-            }
-        } else {
-            emailPreview.textContent = 'Не авторизован';
-            emailPreview.classList.remove('authenticated');
-            if (statusIndicator) {
-                statusIndicator.className = 'user-status-indicator status-offline';
-                statusIndicator.title = 'Статус: Не авторизован';
-            }
+    function handleEmailInput() {
+        if (state.mrimState !== 'authenticated') {
+            updateAuthUI();
         }
-
-        updateAvatar(currentEmail);
     }
 
     // Toggle expand/collapse state
@@ -904,18 +1041,11 @@ function initLoginPanelToggle() {
         });
     }
 
-    // Keep email preview updated on input
     if (emailInput) {
-        emailInput.addEventListener('input', updatePreviewText);
+        emailInput.addEventListener('input', handleEmailInput);
     }
 
-    // Observe status bar changes to update email preview on login success/logout
-    if (authStatus) {
-        const observer = new MutationObserver(updatePreviewText);
-        observer.observe(authStatus, { childList: true, characterData: true, subtree: true });
-    }
-
-    updatePreviewText();
+    updateAuthUI();
 }
 
 // ==========================================

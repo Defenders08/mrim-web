@@ -263,6 +263,8 @@ class MRIMWebServer
         if (preg_match('#^/avatar/([^/]+)/([^/]+)#i', $path, $avatarMatches)) {
             $domain = rawurldecode($avatarMatches[1]);
             $username = rawurldecode($avatarMatches[2]);
+            $fullEmail = strtolower($username . '@' . $domain);
+
             $targetUrl = "http://obraz.mrim.su/" . rawurlencode($domain) . "/" . rawurlencode($username) . "/_mrimavatar";
 
             $ctx = stream_context_create([
@@ -274,20 +276,34 @@ class MRIMWebServer
             ]);
 
             $imgData = @file_get_contents($targetUrl, false, $ctx);
-            if ($imgData !== false && strlen($imgData) > 0) {
-                $response = "HTTP/1.1 200 OK\r\n"
-                          . "Content-Type: image/jpeg\r\n"
-                          . "Cache-Control: public, max-age=86400\r\n"
-                          . "Access-Control-Allow-Origin: *\r\n"
-                          . "Content-Length: " . strlen($imgData) . "\r\n"
-                          . "Connection: close\r\n\r\n"
-                          . $imgData;
-            } else {
-                $response = "HTTP/1.1 404 Not Found\r\n"
-                          . "Content-Type: image/jpeg\r\n"
-                          . "Content-Length: 0\r\n"
-                          . "Connection: close\r\n\r\n";
+            $contentType = 'image/jpeg';
+
+            if ($imgData === false || strlen($imgData) <= 100) {
+                $initial = strtoupper(mb_substr($username, 0, 1, 'UTF-8'));
+                if (!$initial || !preg_match('/[A-Z0-9А-Я]/u', $initial)) {
+                    $initial = '?';
+                }
+
+                $colors = ['#3b5998', '#0066cc', '#0088cc', '#2b579a', '#1e88e5', '#3949ab', '#5e35b1', '#00897b', '#43a047'];
+                $colorIndex = abs(crc32($fullEmail)) % count($colors);
+                $bgColor = $colors[$colorIndex];
+
+                $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">'
+                     . '<rect width="100" height="100" rx="50" fill="' . $bgColor . '"/>'
+                     . '<text x="50" y="50" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">' . htmlspecialchars($initial) . '</text>'
+                     . '</svg>';
+
+                $imgData = $svg;
+                $contentType = 'image/svg+xml';
             }
+
+            $response = "HTTP/1.1 200 OK\r\n"
+                      . "Content-Type: " . $contentType . "\r\n"
+                      . "Cache-Control: public, max-age=86400\r\n"
+                      . "Access-Control-Allow-Origin: *\r\n"
+                      . "Content-Length: " . strlen($imgData) . "\r\n"
+                      . "Connection: close\r\n\r\n"
+                      . $imgData;
 
             @fwrite($sock, $response);
             $this->closeClient($id);

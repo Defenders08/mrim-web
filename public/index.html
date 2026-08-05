@@ -65,9 +65,6 @@
                         </select>
                     </div>
                 </div>
-                <div class="auth-status-bar" id="auth-status-bar">
-                    Статус: Не в сети. Введите логин и пароль для входа.
-                </div>
             </div>
         </form>
     </div>
@@ -89,15 +86,15 @@
             <div class="contacts-list" id="contacts-list">
                 <div class="empty-list">Нет контактов (войдите в сеть)</div>
             </div>
-            <!-- Quick Add Contact / Custom Message To -->
-            <div class="direct-msg-box">
-                <label for="direct-to">Написать / Добавить контакт:</label>
+            <!-- Quick Add Contact / Search at bottom -->
+            <form class="direct-msg-box" id="direct-contact-form">
+                <label for="direct-to">Найти или написать пользователю:</label>
                 <div class="direct-input-row">
-                    <input type="text" id="direct-to" placeholder="friend@mrim.su">
-                    <button type="button" class="btn" id="btn-select-contact" title="Чат">&gt;&gt;</button>
-                    <button type="button" class="btn btn-auth" id="btn-add-contact" title="Добавить контакт в список и авторизовать">+</button>
+                    <input type="text" id="direct-to" placeholder="admin@mrim.su" autocomplete="off">
+                    <button type="submit" class="btn btn-chat" id="btn-select-contact" title="Открыть чат с пользователем">💬</button>
+                    <button type="button" class="btn btn-auth" id="btn-add-contact" title="Добавить контакт в список и запросить авторизацию">👤+</button>
                 </div>
-            </div>
+            </form>
         </div>
 
         <!-- Right Column: Chat Box -->
@@ -105,7 +102,10 @@
             <div class="panel-header chat-header-row">
                 <div class="chat-title-group">
                     <button type="button" class="btn btn-small btn-back-contacts" id="btn-back-contacts" title="Назад к контактам">← Контакты</button>
-                    <img id="active-chat-avatar" class="chat-avatar active-chat-avatar hidden" alt="" />
+                    <div class="contact-avatar-badge">
+                        <img id="active-chat-avatar" class="chat-avatar active-chat-avatar hidden" alt="" />
+                        <span id="active-chat-status-dot" class="contact-status-dot hidden"></span>
+                    </div>
                     <b>Чат:</b> <span id="current-chat-title">Выберите контакт из списка</span>
                     <span id="typing-indicator" class="typing-status hidden">✍️ печатает...</span>
                 </div>
@@ -124,21 +124,37 @@
                 </div>
             </div>
             <form id="send-form" class="send-box">
-                <textarea id="message-input" rows="3" placeholder="Введите сообщение..." disabled></textarea>
-                <div class="send-buttons">
-                    <button type="submit" class="btn btn-send" id="btn-send" disabled>Отправить</button>
+                <div class="send-input-row">
+                    <textarea id="message-input" rows="1" placeholder="Напишите сообщение..." disabled></textarea>
+                    <div class="send-buttons">
+                        <button type="submit" class="btn btn-send" id="btn-send" disabled>Отправить</button>
+                    </div>
+                </div>
+                <div class="send-toolbar">
+                    <button type="button" class="btn btn-small btn-toolbar-stub" title="Смайлики">Смайлики</button>
+                    <button type="button" class="btn btn-small btn-toolbar-stub" title="Будильник">Будильник</button>
+                    <button type="button" class="btn btn-small btn-toolbar-stub" title="Медиа">Медиа</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Bottom Section: Logs -->
-    <div class="panel logs-panel">
-        <div class="panel-header">
-            <b>Лог системных сообщений и ошибок</b>
-            <button type="button" class="btn btn-small" id="btn-clear-logs">Очистить лог</button>
+    <!-- Bottom Section: Logs (Collapsible) -->
+    <div class="panel logs-panel collapsed" id="logs-panel">
+        <div class="panel-header" id="logs-header">
+            <div class="logs-header-title">
+                <b>Лог системных сообщений и ошибок</b>
+            </div>
+            <div class="logs-header-actions">
+                <button type="button" class="btn btn-small" id="btn-clear-logs">Очистить лог</button>
+                <button type="button" class="btn btn-toggle" id="btn-toggle-logs" title="Развернуть/Свернуть лог" aria-expanded="false">
+                    <span class="toggle-chevron" id="logs-toggle-chevron">▼</span>
+                </button>
+            </div>
         </div>
-        <div class="logs-console" id="logs-console"></div>
+        <div class="logs-expandable-content" id="logs-expandable-content">
+            <div class="logs-console" id="logs-console"></div>
+        </div>
     </div>
 </div>
 <script src="smiles.js"></script>
