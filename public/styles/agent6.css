@@ -1,0 +1,682 @@
+/*
+ * Theme: Агент Mail.Ru 6.0 (Зелено-желтый глянец)
+ * Faithful recreation of Mail.Ru Agent 6.0 classic desktop GUI.
+ */
+
+body {
+    background-color: #cbcfd3;
+    background-image: radial-gradient(#dce0e5 15%, transparent 16%), radial-gradient(#dce0e5 15%, transparent 16%);
+    background-size: 16px 16px;
+    background-position: 0 0, 8px 8px;
+    color: #1a2228;
+    font-family: Tahoma, Verdana, Arial, sans-serif;
+    font-size: 11px;
+}
+
+/* Custom Agent 6.0 Scrollbar */
+::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f8f6dd;
+    border-left: 1px solid #ded8a8;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(to right, #f2ecb8 0%, #ded792 100%);
+    border: 1px solid #b8b16a;
+    border-radius: 2px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(to right, #fbf6cc 0%, #e8e0a0 100%);
+}
+
+/* Main Container Window */
+.agent-window {
+    background-color: #f3eb94;
+    border: 3px solid #8f8836;
+    padding: 3px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3), inset 0 0 0 1px #fbf8cf;
+    border-radius: 8px !important;
+    overflow: hidden;
+}
+
+/* Top Title Bar */
+.title-bar {
+    background: linear-gradient(to bottom, #fdfbc8 0%, #f7f198 45%, #ebd86a 50%, #e3ce58 100%);
+    color: #0f3254;
+    border: 1px solid #baaf52;
+    border-radius: 5px 5px 0 0 !important;
+    padding: 4px 8px;
+    font-family: Tahoma, Verdana, sans-serif;
+    font-size: 12px;
+    font-weight: bold;
+    text-shadow: 0 1px 0 #ffffff;
+    margin-bottom: 3px;
+}
+
+.title-text {
+    color: #123456;
+}
+
+.ws-status-square {
+    border: 1px solid #20a020;
+    background-color: #27bf2e;
+    box-shadow: 0 0 4px rgba(39, 191, 46, 0.8), inset 0 1px 0 rgba(255,255,255,0.6);
+    border-radius: 2px !important;
+}
+
+/* Panels Common */
+.panel-header,
+.contacts-panel .panel-header,
+.chat-panel .panel-header.chat-header-row,
+.logs-panel .panel-header {
+    background: linear-gradient(to bottom, #fdfbc7 0%, #f6f19c 50%, #eae382 100%);
+    border-bottom: 1px solid #c2b85e;
+    color: #193858;
+    font-weight: bold;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Login Header Bar (Left Sidebar Top) */
+.login-panel {
+    background: linear-gradient(to bottom, #fcf9d2 0%, #f4ed9e 100%);
+    border-bottom: 1px solid #c7be62;
+}
+
+.user-email-preview {
+    color: #193858;
+    font-weight: bold;
+}
+
+.user-email-preview.authenticated {
+    color: #136a18;
+}
+
+.user-avatar-badge {
+    border: 1px solid #ad9c42;
+    background-color: #ffffff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    border-radius: 2px !important;
+}
+
+.user-status-indicator.status-online {
+    background-color: #25b82a;
+    border-color: #ffffff;
+}
+
+/* Common Agent 6.0 Glossy Button */
+.btn {
+    font-family: Tahoma, Verdana, sans-serif;
+    font-size: 11px;
+    font-weight: bold;
+    color: #18385a;
+    background: linear-gradient(to bottom, #ffffff 0%, #f7f2cb 48%, #eae29c 50%, #e2d98c 100%);
+    border: 1px solid #b0a850;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08), inset 0 1px 0 #ffffff;
+    border-radius: 3px !important;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.1s ease;
+}
+
+.btn:hover {
+    background: linear-gradient(to bottom, #ffffff 0%, #fcf8d8 48%, #f2ebad 50%, #eae29d 100%);
+    border-color: #9c943c;
+    color: #0b2848;
+}
+
+.btn:active {
+    background: linear-gradient(to bottom, #dcd590 0%, #e6dfa0 100%);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.btn-login,
+.btn-chat,
+.btn-send {
+    background: linear-gradient(to bottom, #ffffff 0%, #f8f3cb 45%, #ebd971 50%, #e2cb53 100%);
+    border-color: #a89838;
+    color: #123254;
+}
+
+.btn-login:hover,
+.btn-chat:hover,
+.btn-send:hover {
+    background: linear-gradient(to bottom, #ffffff 0%, #fcf7d6 45%, #f2e181 50%, #ebd461 100%);
+    border-color: #928224;
+}
+
+.btn-toggle {
+    background: linear-gradient(to bottom, #fdfbc7 0%, #eae382 100%);
+    border: 1px solid #b2aa52;
+    border-radius: 3px !important;
+}
+
+/* Form Controls */
+input[type="text"],
+input[type="password"],
+select,
+textarea {
+    border-radius: 3px !important;
+}
+
+/* Workspace Layout */
+.workspace {
+    background-color: #ffffff;
+    border: 1px solid #baaf52;
+    border-radius: 0 0 5px 5px !important;
+}
+
+/* Contacts Panel (Left) */
+.contacts-panel {
+    background-color: #fbf9e6;
+    border-right: 1px solid #c2b85e;
+}
+
+.contacts-list {
+    background-color: #ffffff;
+}
+
+/* Group Headers ("Родные (1/1)", "Друзья (0/3)", etc.) */
+.contact-group-header,
+.contacts-group-title {
+    color: #235896;
+    font-weight: bold;
+    font-size: 11px;
+    padding: 6px 8px 4px 8px;
+    background: linear-gradient(to bottom, #fbf9e8 0%, #f3efa6 100%);
+    border-bottom: 1px solid #e2dc9c;
+    border-top: 1px solid #fcfbdf;
+}
+
+/* Contact List Item */
+.contact-item {
+    padding: 5px 8px;
+    border-bottom: 1px solid #f2f0d8;
+    transition: background-color 0.12s ease;
+}
+
+.contact-item:hover {
+    background-color: #fbf7d2;
+}
+
+/* Active Selected Contact Item (Classic Mail.Ru Agent Gold Highlight) */
+.contact-item.active {
+    background: linear-gradient(to bottom, #fff5b0 0%, #ffeb82 50%, #ffd943 100%) !important;
+    border-top: 1px solid #fffae0;
+    border-bottom: 1px solid #dcae10 !important;
+    border-left: 3px solid #e0a300 !important;
+    font-weight: bold;
+}
+
+.contact-item.active .contact-name {
+    color: #0d1e30;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.contact-name {
+    color: #193554;
+    font-size: 11px;
+}
+
+.unread-badge {
+    background: linear-gradient(to bottom, #ff9600 0%, #e67300 100%);
+    color: #ffffff;
+    border-radius: 8px !important;
+    padding: 1px 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Search Box at Top of Contact List */
+.contact-search-box input,
+#contact-search-input {
+    background-color: #ffffff;
+    border: 1px solid #bfae52;
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 3px !important;
+    outline: none;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.08);
+}
+
+#contact-search-input:focus {
+    border-color: #e5ad19;
+    background-color: #fffffa;
+}
+
+/* Direct Add Contact Box */
+.direct-msg-box {
+    background: linear-gradient(to bottom, #fcf9d4 0%, #f2eb9a 100%);
+    border-top: 1px solid #c8c066;
+}
+
+.direct-msg-box label {
+    color: #193858;
+}
+
+.direct-input-row input {
+    border: 1px solid #b5ac52;
+    border-radius: 3px !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* Chat Panel (Right) */
+.chat-panel {
+    background-color: #ffffff;
+}
+
+.chat-panel .panel-header.chat-header-row {
+    background: linear-gradient(to bottom, #fdfbc8 0%, #f7f29e 50%, #eae282 100%);
+    border-bottom: 1px solid #c5bd60;
+    padding: 6px 12px;
+}
+
+.chat-title-group .chat-contact-name {
+    color: #123254;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+/* Chat Messages Container */
+.chat-history {
+    background-color: #ffffff;
+    padding: 12px;
+}
+
+.chat-welcome {
+    background: linear-gradient(to bottom, #ffffff 0%, #fdfce8 100%);
+    border: 1px solid #dcd592;
+    border-radius: 4px !important;
+    color: #223f60;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+/* Individual Message Items */
+.message-item {
+    padding: 6px 10px;
+    background-color: #ffffff;
+    border: 1px solid #ded8a0;
+    border-radius: 4px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.message-item:has(.msg-author.me),
+.message-item.msg-outgoing {
+    background: linear-gradient(to bottom, #ffffff 0%, #fefddf 100%);
+    border-color: #d8ce70;
+}
+
+.msg-header {
+    font-size: 10px;
+    color: #556677;
+    border-bottom: 1px dashed #ece6b2;
+    padding-bottom: 2px;
+    margin-bottom: 4px;
+}
+
+.msg-author {
+    font-weight: bold;
+    color: #0b4c8c;
+}
+
+.msg-author.me {
+    color: #005a9c;
+}
+
+.msg-text {
+    color: #111111;
+    font-size: 11px;
+}
+
+/* System Message (Blue Cursive / Italic style from Agent 6.0) */
+.system-message,
+.chat-system-msg {
+    color: #185a9d !important;
+    font-style: italic;
+    text-align: center;
+    background: #faf8e3;
+    border: 1px solid #e8e2aa;
+    padding: 4px 10px;
+    margin: 4px auto;
+    border-radius: 12px !important;
+    font-size: 11px;
+}
+
+/* Chat Formatting Toolbar (above input box) */
+.send-toolbar,
+.chat-format-bar {
+    background: linear-gradient(to bottom, #fdfbc7 0%, #f6f0aa 48%, #eae186 50%, #e2d874 100%);
+    border-top: 1px solid #d4cc70;
+    border-bottom: 1px solid #baa848;
+    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.send-toolbar #btn-sound-toggle {
+    margin-left: auto;
+}
+
+.btn-toolbar-stub,
+.format-btn {
+    font-family: Tahoma, Verdana, sans-serif;
+    font-size: 11px;
+    font-weight: bold;
+    color: #102a48;
+    background: linear-gradient(to bottom, #ffffff 0%, #f9f5da 45%, #edd274 50%, #e2c050 100%);
+    border: 1px solid #a29232;
+    padding: 3px 10px;
+    border-radius: 4px !important;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 1px 0 #ffffff;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.btn-toolbar-stub:hover:not(:disabled),
+.format-btn:hover:not(:disabled) {
+    background: linear-gradient(to bottom, #ffffff 0%, #fdf8df 45%, #f2dc82 50%, #ebcd5b 100%);
+    border-color: #8c7d1e;
+    color: #001833;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18), inset 0 1px 0 #ffffff;
+}
+
+.btn-toolbar-stub:active:not(:disabled),
+.format-btn:active:not(:disabled) {
+    background: linear-gradient(to bottom, #ded278 0%, #e8dc8c 100%);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+    color: #0d223a;
+}
+
+.btn-toolbar-stub:disabled,
+.format-btn:disabled {
+    background: linear-gradient(to bottom, #fcfaf0 0%, #eee8cc 50%, #e4dcac 100%);
+    border-color: #c0b87a;
+    color: #888060;
+    opacity: 0.85;
+    cursor: not-allowed;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+    box-shadow: inset 0 1px 0 #ffffff;
+}
+
+/* Bottom Send Box Area */
+.send-box {
+    background: linear-gradient(to bottom, #fdfbc8 0%, #f4ed9a 100%);
+    border-top: 1px solid #c5bd60;
+    padding: 8px 12px;
+}
+
+.send-box textarea,
+.send-box .message-input {
+    background-color: #ffffff;
+    border: 1px solid #baa848;
+    border-radius: 3px !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+    font-size: 11px;
+}
+
+.send-box textarea:focus,
+.send-box .message-input:focus {
+    border-color: #d19a12;
+    background-color: #ffffff;
+}
+
+/* Smile Picker Popup */
+.smile-picker-popup {
+    background-color: #fdfce8;
+    border: 2px solid #a89c42;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+    border-radius: 4px !important;
+}
+
+.smile-picker-header {
+    background: linear-gradient(to bottom, #fdfbc7 0%, #eae382 100%);
+    border-bottom: 1px solid #c2b85e;
+    color: #193858;
+}
+
+.smile-picker-grid,
+.kaomoji-picker-grid {
+    background-color: #ffffff;
+}
+
+.smile-picker-item,
+.kaomoji-picker-item {
+    background-color: #fcfbfa;
+    border: 1px solid #ded8b8;
+    border-radius: 3px !important;
+    color: #18385a;
+}
+
+.smile-picker-item:hover,
+.kaomoji-picker-item:hover {
+    background: linear-gradient(to bottom, #fff6be 0%, #ffe970 100%);
+    border-color: #d8ad10;
+    color: #0b2848;
+}
+
+.smile-picker-footer {
+    background: linear-gradient(to bottom, #fdfbc7 0%, #eae382 100%);
+    border-top: 1px solid #c2b85e;
+    padding: 4px;
+}
+
+.smile-picker-tab {
+    background: linear-gradient(to bottom, #ffffff 0%, #f7f2cb 48%, #eae29c 50%, #e2d98c 100%);
+    border: 1px solid #b0a850;
+    color: #18385a;
+    font-weight: bold;
+    border-radius: 3px !important;
+}
+
+.smile-picker-tab:hover {
+    background: linear-gradient(to bottom, #ffffff 0%, #fcf8d8 48%, #f2ebad 50%, #eae29d 100%);
+    border-color: #9c943c;
+    color: #0b2848;
+}
+
+.smile-picker-tab.active {
+    background: linear-gradient(to bottom, #ffffff 0%, #f8f3cb 45%, #ebd971 50%, #e2cb53 100%);
+    border-color: #a89838;
+    color: #123254;
+    box-shadow: inset 0 1px 0 #ffffff;
+}
+
+/* Mobile Tabs */
+.mobile-workspace-tabs {
+    background: linear-gradient(to bottom, #fcf8ce 0%, #eae28c 100%);
+    border-bottom: 1px solid #c5bd60;
+}
+
+.mobile-tab-btn {
+    background: transparent;
+    border: none;
+    color: #193858;
+    font-weight: bold;
+    font-size: 11px;
+    padding: 6px 12px;
+}
+
+.mobile-tab-btn.active {
+    background: linear-gradient(to bottom, #fff5b0 0%, #ffd943 100%);
+    border-bottom: 2px solid #dcae10;
+    color: #0b1d30;
+}
+
+/* Logs Panel at Bottom */
+.logs-panel {
+    background-color: #fcf9d2;
+    border-top: 1px solid #c7be62;
+}
+
+.logs-panel .panel-header {
+    background: linear-gradient(to bottom, #fdfbc7 0%, #eae382 100%);
+}
+
+.logs-console {
+    background-color: #12181f;
+    color: #d8e4f0;
+    border-top: 1px solid #2a3848;
+}
+
+/* Status dots */
+.status-online,
+.user-status-indicator.status-online,
+.contact-status-dot.status-online {
+    background-color: #27bf2e !important;
+    box-shadow: 0 0 2px rgba(0,0,0,0.3);
+}
+
+.status-away,
+.user-status-indicator.status-away,
+.contact-status-dot.status-away {
+    background-color: #ffaa00 !important;
+}
+
+.status-offline,
+.user-status-indicator.status-offline,
+.contact-status-dot.status-offline {
+    background-color: #999999 !important;
+}
+
+/* Modals & Settings Window */
+.modal-overlay {
+    background-color: rgba(15, 25, 35, 0.5);
+}
+
+.modal-window {
+    background-color: #f7f4cc;
+    border: 2px solid #a8a14e;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    border-radius: 4px !important;
+}
+
+.modal-header {
+    background: linear-gradient(to bottom, #fdfbc7 0%, #f6f19c 50%, #eae382 100%);
+    border-bottom: 1px solid #c2b85e;
+    color: #18385a;
+    font-weight: bold;
+    padding: 8px 12px;
+}
+
+.modal-close-btn {
+    background: linear-gradient(to bottom, #ffffff 0%, #f7f2cb 48%, #eae29c 50%, #e2d98c 100%);
+    border: 1px solid #b0a850;
+    color: #18385a;
+    border-radius: 3px !important;
+    width: 20px;
+    height: 20px;
+}
+
+.modal-close-btn:hover {
+    background: linear-gradient(to bottom, #ffffff 0%, #fcf8d8 48%, #f2ebad 50%, #eae29d 100%);
+    color: #0b2848;
+}
+
+.modal-body {
+    background-color: #fcf9d8;
+    padding: 14px;
+}
+
+.settings-section {
+    background-color: #ffffff;
+    border: 1px solid #dcd592;
+    border-radius: 3px !important;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.settings-section-title {
+    color: #123254;
+    font-weight: bold;
+    border-bottom: 1px solid #e3dc9e;
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+}
+
+.form-field select,
+.form-field input[type="text"],
+.form-field input[type="file"] {
+    background-color: #ffffff;
+    border: 1px solid #baa848;
+    border-radius: 3px !important;
+    color: #123254;
+}
+
+.form-field select:focus,
+.form-field input[type="text"]:focus {
+    border-color: #d19a12;
+    box-shadow: 0 0 0 2px rgba(224, 163, 0, 0.2);
+}
+
+.pwa-guide-section {
+    background-color: #fefde8;
+    border: 1px solid #e2dc9c;
+    border-radius: 3px !important;
+    padding: 8px 12px;
+    margin-top: 8px;
+}
+
+.pwa-platform-header {
+    color: #18385a;
+}
+
+.pwa-steps {
+    color: #223344;
+}
+
+.pwa-status-box {
+    background-color: #fffde0;
+    border: 1px solid #dcd590;
+    border-left: 3px solid #dcae10;
+    padding: 8px 12px;
+    margin-top: 10px;
+    border-radius: 2px !important;
+    color: #334455;
+}
+
+.modal-footer {
+    background: linear-gradient(to bottom, #fdfbc7 0%, #f4ed9a 100%);
+    border-top: 1px solid #c2b85e;
+    padding: 8px 12px;
+}
+
+/* Mobile Overrides for Agent 6.0 Theme */
+@media (max-width: 768px) {
+    .contact-item.active {
+        background: transparent !important;
+        border-top: none !important;
+        border-bottom: 1px solid #f2f0d8 !important;
+        border-left: none !important;
+        font-weight: normal !important;
+    }
+
+    .contact-item.active .contact-name {
+        color: #193554 !important;
+        text-shadow: none !important;
+    }
+
+    ::-webkit-scrollbar,
+    *::-webkit-scrollbar,
+    *::-webkit-scrollbar-track,
+    *::-webkit-scrollbar-thumb,
+    *::-webkit-scrollbar-button,
+    *::-webkit-scrollbar-corner {
+        width: 0 !important;
+        height: 0 !important;
+        display: none !important;
+        background: transparent !important;
+        border: none !important;
+    }
+
+    * {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+}

@@ -1629,6 +1629,14 @@ class MRIMClient
      */
     private function handleIncomingMessage(string $data): void
     {
+        // Extract binary msg_id and flags from offset 0 if present
+        $binaryMsgId = 0;
+        $binaryFlags = 0;
+        if (strlen($data) >= 8) {
+            $binaryMsgId = MRIMProtocol::decodeUint32($data, 0);
+            $binaryFlags = MRIMProtocol::decodeUint32($data, 4);
+        }
+
         // 1. Locate MIME content in $data (find where headers start)
         $mimePos = false;
         foreach (['From:', 'Content-Type:', 'MIME-Version:', 'X-MRIM-'] as $needle) {
@@ -1669,15 +1677,17 @@ class MRIMClient
         }
 
         // Extract Msg ID
-        $msgId = 0;
+        $msgId = $binaryMsgId;
         if (isset($headers['x-mrim-msg-id'])) {
             $msgId = (int)$headers['x-mrim-msg-id'];
         } elseif (isset($headers['msg-id'])) {
             $msgId = (int)$headers['msg-id'];
+        } elseif (isset($headers['message-id'])) {
+            $msgId = (int)$headers['message-id'];
         }
 
         // Extract Flags
-        $flags = 0;
+        $flags = $binaryFlags;
         if (isset($headers['x-mrim-flags'])) {
             $flagsRaw = $headers['x-mrim-flags'];
             if (strpos($flagsRaw, '0x') === 0) {
@@ -1825,6 +1835,9 @@ class MRIMClient
                 $this->log("Получен БУДИЛЬНИК (WakeUp) от $fromEmail в RECV3!", 'warning');
                 $wakeUpData = MRIMWakeUp::processIncomingWakeUp($fromEmail, $cleanText, $flags)['data'];
                 $this->emit('wakeup', $wakeUpData);
+                if ($type > 0) {
+                    $this->sendMessageAck($type, $fromEmail);
+                }
                 return;
             }
 
@@ -1935,11 +1948,12 @@ class MRIMClient
             $cleanText = $proc['text'];
             $isAuthReq = $proc['is_auth_request'];
             $isWakeUp = MRIMWakeUp::isWakeUpMessage($flags, $cleanText);
+            $isOfflineMsg = (($flags & MRIMProtocol::MESSAGE_FLAG_OFFLINE) !== 0);
 
-            $this->log("PARSED MESSAGE FROM MESSAGE_ACK (0x1009) from $fromEmail: $cleanText (is_wakeup=" . ($isWakeUp ? 'YES' : 'NO') . ")", 'info');
+            $this->log("PARSED MESSAGE FROM MESSAGE_ACK (0x1009) from $fromEmail: $cleanText (is_wakeup=" . ($isWakeUp ? 'YES' : 'NO') . ", is_offline=" . ($isOfflineMsg ? 'YES' : 'NO') . ")", 'info');
 
             // Send delivery acknowledgment back to server if msgId > 0
-            if ($msgId > 0) {
+            if ($msgId > 0 && ($isOfflineMsg || $isAuthReq || $isWakeUp)) {
                 $this->sendMessageAck($msgId, $fromEmail);
             }
 
@@ -1958,7 +1972,7 @@ class MRIMClient
                     'text' => $cleanText,
                     'nick' => $proc['sender_nick'],
                 ]);
-            } else {
+            } elseif ($isOfflineMsg) {
                 $this->emit('message', [
                     'from'            => $fromEmail,
                     'text'            => $cleanText,

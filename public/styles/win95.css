@@ -1,0 +1,644 @@
+/*
+ * Theme: Windows 95 (Ретро)
+ * Pixel-perfect retro Windows XP/95 Tahoma & MS Sans Serif bitmap typography
+ */
+
+@import url('https://fonts.cdnfonts.com/css/ms-sans-serif');
+
+* {
+    border-radius: 0 !important;
+    -webkit-font-smoothing: none !important;
+    -moz-osx-font-smoothing: none !important;
+    font-smooth: never !important;
+    text-rendering: optimizeSpeed !important;
+}
+
+body {
+    background-color: #008080;
+    color: #000000;
+    font-family: 'MS Sans Serif', 'Tahoma', 'Segoe UI', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0px;
+    line-height: 1.2;
+}
+
+::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+}
+
+::-webkit-scrollbar-track {
+    background: #e0e0e0;
+    background-image: repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%);
+    background-size: 2px 2px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c0c0c0;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #d4d4d4;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: #c0c0c0;
+    box-shadow: inset 1px 1px #000000, inset -1px -1px #ffffff, inset 2px 2px #808080, inset -2px -2px #dfdfdf;
+}
+
+::-webkit-scrollbar-corner {
+    background: #c0c0c0;
+}
+
+.agent-window {
+    background-color: #c0c0c0;
+    border: none;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+    padding: 3px;
+}
+
+.title-bar {
+    background: #000080;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 11px;
+    padding: 3px 6px;
+    display: flex;
+    align-items: center;
+    border: none;
+}
+
+.ws-status-square {
+    border: 1px solid #ffffff;
+    background-color: #00ff00;
+    box-shadow: inset 1px 1px #000000;
+    width: 10px;
+    height: 10px;
+}
+
+.panel-header,
+.contacts-panel .panel-header,
+.chat-panel .panel-header.chat-header-row,
+.logs-panel .panel-header {
+    background-color: #c0c0c0;
+    color: #000000;
+    font-weight: bold;
+    font-size: 11px;
+    border-bottom: 2px solid;
+    border-color: #808080 #ffffff #ffffff #808080;
+    padding: 4px 8px;
+}
+
+.login-panel {
+    background-color: #c0c0c0;
+    border-bottom: 2px solid #808080;
+}
+
+.user-avatar-badge,
+.chat-avatar {
+    background-color: #ffffff;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+}
+
+.user-email-preview {
+    color: #000000;
+    font-weight: bold;
+}
+
+.user-email-preview.authenticated {
+    color: #008000;
+}
+
+.form-grid {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+    padding: 8px;
+}
+
+.form-field label {
+    color: #000000;
+    font-size: 11px;
+}
+
+.form-field input[type="text"],
+.form-field input[type="password"],
+.form-field select,
+.direct-input-row input,
+.send-box textarea,
+.send-box .message-input {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'MS Sans Serif', 'Tahoma', sans-serif !important;
+    font-size: 11px !important;
+    border: none !important;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080 !important;
+    padding: 3px 5px !important;
+    outline: none !important;
+    -webkit-font-smoothing: none !important;
+    -moz-osx-font-smoothing: none !important;
+    font-smooth: never !important;
+}
+
+.form-field input[type="text"]:focus,
+.form-field input[type="password"]:focus,
+.form-field select:focus,
+.direct-input-row input:focus,
+.send-box textarea:focus,
+.send-box .message-input:focus {
+    outline: 1px dotted #000000 !important;
+    outline-offset: -2px !important;
+}
+
+.auth-status-bar {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+    color: #000000;
+}
+
+.workspace {
+    background-color: #c0c0c0;
+}
+
+.contacts-panel {
+    background-color: #c0c0c0;
+    border-right: 2px solid #808080;
+}
+
+.contacts-list {
+    background-color: #ffffff;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+    margin: 4px;
+}
+
+.contact-item {
+    border-bottom: 1px solid #dfdfdf;
+    padding: 5px 8px;
+}
+
+.contact-item:hover {
+    background-color: #000080;
+    color: #ffffff;
+}
+
+.contact-item:hover .contact-name {
+    color: #ffffff;
+}
+
+.contact-item.active {
+    background-color: #000080;
+    color: #ffffff;
+    border-left: none;
+    outline: 1px dotted #ffffff;
+    outline-offset: -2px;
+}
+
+.contact-item.active .contact-name {
+    color: #ffffff;
+}
+
+.contact-name {
+    color: #000000;
+    font-size: 11px;
+}
+
+.unread-badge {
+    background-color: #000080;
+    color: #ffffff;
+    font-weight: bold;
+    border: 1px solid #000000;
+}
+
+.direct-msg-box {
+    background-color: #c0c0c0;
+    border-top: 2px solid #808080;
+}
+
+/* Remove emojis in direct contact form buttons for Win95 theme */
+.direct-msg-box #btn-select-contact,
+.direct-msg-box #btn-add-contact {
+    font-size: 0 !important;
+}
+
+.direct-msg-box #btn-select-contact::before {
+    content: "Чат";
+    font-size: 11px !important;
+    font-family: 'MS Sans Serif', 'Tahoma', sans-serif !important;
+}
+
+.direct-msg-box #btn-add-contact::before {
+    content: "+ Контакт";
+    font-size: 11px !important;
+    font-family: 'MS Sans Serif', 'Tahoma', sans-serif !important;
+}
+
+.btn,
+.btn-login,
+.btn-send,
+.btn-chat,
+.btn-toolbar-stub,
+.btn-back-contacts,
+.modal-close-btn {
+    background-color: #c0c0c0 !important;
+    color: #000000 !important;
+    font-family: 'MS Sans Serif', 'Tahoma', sans-serif !important;
+    font-size: 11px !important;
+    font-weight: bold !important;
+    border: none !important;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf !important;
+    padding: 4px 10px !important;
+    cursor: pointer;
+    -webkit-font-smoothing: none !important;
+    -moz-osx-font-smoothing: none !important;
+}
+
+.btn:hover,
+.btn-login:hover,
+.btn-send:hover,
+.btn-chat:hover,
+.btn-toolbar-stub:hover,
+.btn-back-contacts:hover,
+.modal-close-btn:hover {
+    background-color: #d4d4d4 !important;
+}
+
+.btn:active,
+.btn-login:active,
+.btn-send:active,
+.btn-chat:active,
+.btn-toolbar-stub:active,
+.btn-back-contacts:active,
+.modal-close-btn:active {
+    box-shadow: inset 1px 1px #000000, inset -1px -1px #ffffff, inset 2px 2px #808080, inset -2px -2px #dfdfdf !important;
+    padding: 5px 9px 3px 11px !important;
+}
+
+.btn:focus,
+.btn-login:focus,
+.btn-send:focus,
+.btn-chat:focus {
+    outline: 1px dotted #000000 !important;
+    outline-offset: -3px !important;
+}
+
+.btn:disabled {
+    color: #808080 !important;
+    text-shadow: 1px 1px #ffffff;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf !important;
+}
+
+.chat-panel {
+    background-color: #c0c0c0;
+}
+
+/* Windows 95 Classic Stipple / Dither Texture for Chat Header, Welcome & Send Box */
+.chat-panel .panel-header,
+.chat-welcome,
+.send-box {
+    background-color: #c0c0c0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='2' height='2'><rect x='0' y='0' width='1' height='1' fill='%23ffffff' fill-opacity='0.4'/><rect x='1' y='1' width='1' height='1' fill='%23ffffff' fill-opacity='0.4'/><rect x='1' y='0' width='1' height='1' fill='%23808080' fill-opacity='0.25'/><rect x='0' y='1' width='1' height='1' fill='%23808080' fill-opacity='0.25'/></svg>");
+}
+
+.chat-history {
+    background-color: #ffffff;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+    margin: 4px;
+}
+
+.chat-welcome {
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+    border: none;
+    color: #000000;
+}
+
+.message-item {
+    background-color: #ffffff;
+    box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080;
+    border: none;
+    color: #000000;
+}
+
+.message-item:has(.msg-author.me),
+.message-item.msg-outgoing {
+    background-color: #f0f0f0;
+    box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080;
+}
+
+.msg-header {
+    color: #404040;
+    font-size: 10px;
+}
+
+.msg-author {
+    color: #000080;
+    font-weight: bold;
+}
+
+.msg-author.me {
+    color: #800000;
+    font-weight: bold;
+}
+
+.send-box {
+    background-color: #c0c0c0;
+    border-top: 2px solid #808080;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Win95 Retro Messenger Toolbar under input field */
+.send-toolbar {
+    order: 1; /* Position toolbar under the message input field */
+    background-color: #c0c0c0;
+    box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080;
+    border: 1px solid #808080;
+    padding: 3px 4px;
+    margin-top: 4px;
+    margin-bottom: 0;
+    gap: 3px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.send-toolbar .btn-toolbar-stub {
+    height: 22px !important;
+    padding: 1px 6px !important;
+    font-family: 'MS Sans Serif', 'Tahoma', sans-serif !important;
+    font-size: 11px !important;
+    font-weight: normal !important;
+    color: #000000 !important;
+    background-color: #c0c0c0 !important;
+    border: none !important;
+    box-shadow: inset -1px -1px #808080, inset 1px 1px #ffffff, inset -2px -2px #404040, inset 2px 2px #e0e0e0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    cursor: pointer !important;
+    user-select: none !important;
+}
+
+.send-toolbar .btn-toolbar-stub:hover:not(:disabled) {
+    background-color: #d4d4d4 !important;
+}
+
+.send-toolbar .btn-toolbar-stub:active:not(:disabled) {
+    box-shadow: inset 1px 1px #808080, inset -1px -1px #ffffff !important;
+    padding: 2px 5px 0px 7px !important;
+}
+
+.send-toolbar .btn-toolbar-stub:disabled {
+    color: #808080 !important;
+    text-shadow: 1px 1px #ffffff;
+    opacity: 0.85;
+}
+
+
+.logs-panel {
+    background-color: #c0c0c0;
+    border-top: 2px solid #808080;
+}
+
+.logs-console {
+    background-color: #000000;
+    color: #00ff00;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 11px;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+    -webkit-font-smoothing: none !important;
+}
+
+.modal-overlay {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.modal-window {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf, 3px 3px 10px rgba(0, 0, 0, 0.5);
+    border: none;
+    padding: 3px;
+}
+
+.modal-header {
+    background: #000080;
+    color: #ffffff;
+    font-weight: bold;
+    border-bottom: none;
+    padding: 3px 6px;
+}
+
+.modal-body {
+    background-color: #c0c0c0;
+    padding: 10px;
+}
+
+.settings-section {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.settings-section-title {
+    color: #000080;
+    font-weight: bold;
+}
+
+.settings-divider {
+    border-top: 1px solid #808080;
+    border-bottom: 1px solid #ffffff;
+    margin: 12px 0;
+}
+
+.mobile-workspace-tabs {
+    background-color: #c0c0c0;
+    border-top: 2px solid #808080;
+}
+
+.mobile-tab-btn {
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+    background-color: #c0c0c0;
+}
+
+.mobile-tab-btn.active {
+    color: #000080;
+    font-weight: bold;
+    background-color: #ffffff;
+    box-shadow: inset 1px 1px #000000, inset -1px -1px #ffffff;
+}
+
+.smile-picker-popup {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+    border: none;
+}
+
+.smile-picker-header,
+.smile-picker-footer {
+    background-color: #000080;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.smile-picker-tab {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+}
+
+.smile-picker-tab.active {
+    color: #000080;
+    font-weight: bold;
+    background-color: #ffffff;
+    box-shadow: inset 1px 1px #000000, inset -1px -1px #ffffff;
+}
+
+.smile-picker-grid,
+.kaomoji-picker-grid {
+    background-color: #ffffff;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+}
+
+.smile-picker-item,
+.kaomoji-picker-item {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+}
+
+.smile-picker-item:hover,
+.kaomoji-picker-item:hover {
+    background-color: #000080;
+    color: #ffffff;
+}
+
+/* Modals & Settings Window - Win95 Theme */
+.modal-overlay {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.modal-window {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+    border: none;
+    border-radius: 0 !important;
+}
+
+.modal-header {
+    background-color: #000080;
+    color: #ffffff;
+    font-weight: bold;
+    padding: 3px 6px;
+    border-bottom: none;
+}
+
+.modal-close-btn {
+    background-color: #c0c0c0;
+    color: #000000;
+    font-weight: bold;
+    font-size: 11px;
+    box-shadow: inset -1px -1px #000000, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+    border-radius: 0 !important;
+    width: 16px;
+    height: 14px;
+}
+
+.modal-close-btn:hover {
+    background-color: #d4d4d4;
+    color: #000000;
+}
+
+.modal-body {
+    background-color: #c0c0c0;
+    padding: 10px;
+}
+
+.settings-section {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+    border-radius: 0 !important;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.settings-section-title {
+    color: #000000;
+    font-weight: bold;
+    border-bottom: 1px solid #808080;
+}
+
+.form-field select,
+.form-field input[type="text"] {
+    background-color: #ffffff;
+    color: #000000;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+    border: none;
+    border-radius: 0 !important;
+}
+
+.pwa-guide-section {
+    background-color: #ffffff;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000;
+    border-radius: 0 !important;
+    color: #000000;
+}
+
+.pwa-platform-header {
+    color: #000080;
+}
+
+.pwa-status-box {
+    background-color: #c0c0c0;
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #000000;
+    color: #000000;
+    border-left: 3px solid #000080;
+}
+
+.modal-footer {
+    background-color: #c0c0c0;
+    border-top: 1px solid #808080;
+    padding: 8px 10px;
+}
+
+/* Mobile Overrides for Win95 Theme */
+@media (max-width: 768px) {
+    .contact-item.active {
+        background-color: transparent !important;
+        color: #000000 !important;
+        border-left: none !important;
+        border-top: none !important;
+        outline: none !important;
+        font-weight: normal !important;
+    }
+
+    .contact-item.active .contact-name {
+        color: #000000 !important;
+        text-shadow: none !important;
+    }
+
+    ::-webkit-scrollbar,
+    *::-webkit-scrollbar,
+    *::-webkit-scrollbar-track,
+    *::-webkit-scrollbar-thumb,
+    *::-webkit-scrollbar-button,
+    *::-webkit-scrollbar-corner {
+        width: 0 !important;
+        height: 0 !important;
+        display: none !important;
+        background: transparent !important;
+        border: none !important;
+    }
+
+    * {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+}

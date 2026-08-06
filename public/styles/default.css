@@ -1,0 +1,9 @@
+/*
+ * Theme: Mail.Ru Агент (Классическая синяя)
+ * Default brand theme for MRIM Web Client
+ */
+
+/* Default theme relies on style.css core definitions */
+:root {
+    --theme-name: "default";
+}

@@ -15,7 +15,7 @@ return [
     // Web / WebSocket server configuration
     // Port 3000 for PHP HTTP/WebSocket server
     'server_host' => '0.0.0.0',
-    'server_port' => (int) (getenv('PORT') ?: 3000),
+    'server_port' => 3000,
 
     // MRIM client identification string sent during CS_LOGIN2
     'mrim_client_name' => 'client="magent" version="5.10" build="3850"',

@@ -28,7 +28,52 @@ const state = {
     activeContact: null,// currently selected contact email
     messages: {},       // email -> [ { from, text, timestamp, isMe } ]
     soundEnabled: true, // sound notifications toggle
+    manualLogout: false, // track manual logout to prevent auto-login loop
 };
+
+/**
+ * Saved Login & Password persistence using localStorage
+ */
+const CREDENTIALS_KEY = 'mrim_saved_creds_v1';
+
+function saveSavedCredentials(email, password, status, remember) {
+    if (!remember) {
+        localStorage.removeItem(CREDENTIALS_KEY);
+        return;
+    }
+    try {
+        localStorage.setItem(CREDENTIALS_KEY, JSON.stringify({ email, password, status }));
+    } catch (e) {
+        console.warn('Ошибка сохранения учетных данных:', e);
+    }
+}
+
+function loadSavedCredentials() {
+    try {
+        const stored = localStorage.getItem(CREDENTIALS_KEY);
+        if (!stored) return null;
+        return JSON.parse(stored);
+    } catch (e) {
+        return null;
+    }
+}
+
+function isRememberMeEnabled() {
+    const pref = localStorage.getItem('mrim_remember_me_pref');
+    if (pref === 'false') return false;
+    if (pref === 'true') return true;
+    return loadSavedCredentials() !== null;
+}
+
+function restoreSavedCredentials() {
+    if (!isRememberMeEnabled()) return;
+    const creds = loadSavedCredentials();
+    if (creds && creds.email) {
+        if (el.loginEmail) el.loginEmail.value = creds.email;
+        if (el.loginPass) el.loginPass.value = creds.password || '';
+        if (el.loginStatus && creds.status) el.loginStatus.value = creds.status;
+    }
+}
 
 // DOM Elements
 const el = {
@@ -40,7 +85,16 @@ const el = {
     btnLogin:     document.getElementById('btn-login'),
     btnLogout:    document.getElementById('btn-logout'),
     btnReconnect: document.getElementById('btn-reconnect'),
-    btnPing:      document.getElementById('btn-ping'),
+    btnSettings:  document.getElementById('btn-settings'),
+    settingsModal:      document.getElementById('settings-modal'),
+    settingsRememberMe: document.getElementById('settings-remember-me'),
+    settingsThemeSelect:document.getElementById('settings-theme-select'),
+    customThemeUploadBox: document.getElementById('custom-theme-upload-box'),
+    settingsCustomThemeFile: document.getElementById('settings-custom-theme-file'),
+    customThemeStatus: document.getElementById('custom-theme-status'),
+    btnSaveSettings:    document.getElementById('btn-save-settings'),
+    btnCloseSettings:   document.getElementById('btn-close-settings'),
+    btnCloseSettingsX:  document.getElementById('btn-close-settings-x'),
     authStatusBar:document.getElementById('auth-status-bar'),
     contactsCount:document.getElementById('contacts-count'),
     contactsList: document.getElementById('contacts-list'),
@@ -51,6 +105,7 @@ const el = {
     currentChatTitle: document.getElementById('current-chat-title'),
     chatHeaderActions:document.getElementById('chat-header-actions'),
     btnAuthorizeActive:document.getElementById('btn-authorize-active'),
+    btnClearHistory:   document.getElementById('btn-clear-history'),
     btnWakeupActive:   document.getElementById('btn-wakeup-active'),
     btnSoundToggle:    document.getElementById('btn-sound-toggle'),
     typingIndicator:  document.getElementById('typing-indicator'),
@@ -62,6 +117,128 @@ const el = {
     logsConsole:  document.getElementById('logs-console'),
     btnClearLogs: document.getElementById('btn-clear-logs'),
 };
+
+/**
+ * Local chat history persistence using localStorage
+ */
+function saveHistoryToStorage() {
+    if (!state.myEmail) return;
+    try {
+        const historyKey = 'mrim_history_' + state.myEmail.toLowerCase().trim();
+        const contactsKey = 'mrim_contacts_' + state.myEmail.toLowerCase().trim();
+
+        const historyToSave = {};
+        Object.keys(state.messages).forEach(contactEmail => {
+            const msgs = state.messages[contactEmail] || [];
+            if (msgs.length > 0) {
+                historyToSave[contactEmail.toLowerCase().trim()] = msgs.slice(-500);
+            }
+        });
+        localStorage.setItem(historyKey, JSON.stringify(historyToSave));
+
+        const contactsToSave = {};
+        Object.keys(state.contacts).forEach(contactEmail => {
+            const c = state.contacts[contactEmail];
+            contactsToSave[contactEmail.toLowerCase().trim()] = {
+                email: c.email,
+                nickname: c.nickname || c.email,
+                status: c.status || 0
+            };
+        });
+        localStorage.setItem(contactsKey, JSON.stringify(contactsToSave));
+    } catch (e) {
+        console.warn('Ошибка сохранения истории в localStorage:', e);
+    }
+}
+
+function loadHistoryFromStorage() {
+    if (!state.myEmail) return;
+    try {
+        const historyKey = 'mrim_history_' + state.myEmail.toLowerCase().trim();
+        const contactsKey = 'mrim_contacts_' + state.myEmail.toLowerCase().trim();
+
+        // 1. Restore saved contacts list
+        const savedContacts = localStorage.getItem(contactsKey);
+        if (savedContacts) {
+            const parsedContacts = JSON.parse(savedContacts);
+            Object.keys(parsedContacts).forEach(cEmail => {
+                const norm = cEmail.toLowerCase().trim();
+                if (!state.contacts[norm]) {
+                    state.contacts[norm] = {
+                        email: norm,
+                        nickname: parsedContacts[cEmail].nickname || norm,
+                        status: parsedContacts[cEmail].status || 0,
+                        unread: 0
+                    };
+                }
+            });
+        }
+
+        // 2. Restore saved chat messages
+        const savedHistory = localStorage.getItem(historyKey);
+        if (savedHistory) {
+            const parsedHistory = JSON.parse(savedHistory);
+            let totalLoaded = 0;
+
+            Object.keys(parsedHistory).forEach(cEmail => {
+                const norm = cEmail.toLowerCase().trim();
+                if (!state.messages[norm]) {
+                    state.messages[norm] = [];
+                }
+                const savedMsgs = parsedHistory[cEmail] || [];
+                const currentMsgs = state.messages[norm];
+
+                savedMsgs.forEach(m => {
+                    const mTs = m.timestamp > 1e11 ? Math.floor(m.timestamp / 1000) : (m.timestamp || 0);
+                    const exists = currentMsgs.some(cur => {
+                        const curTs = cur.timestamp > 1e11 ? Math.floor(cur.timestamp / 1000) : (cur.timestamp || 0);
+                        return cur.text === m.text && cur.isMe === m.isMe && (!mTs || !curTs || Math.abs(curTs - mTs) <= 300);
+                    });
+                    if (!exists) {
+                        currentMsgs.push({
+                            ...m,
+                            timestamp: mTs || Math.floor(Date.now() / 1000)
+                        });
+                        totalLoaded++;
+                    }
+                });
+
+                currentMsgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+                if (!state.contacts[norm]) {
+                    state.contacts[norm] = {
+                        email: norm,
+                        nickname: norm,
+                        status: 0,
+                        unread: 0
+                    };
+                }
+            });
+
+            if (totalLoaded > 0) {
+                logToConsole(`📥 Загружена история диалогов из localStorage (${totalLoaded} сообщ.)`, 'info');
+            }
+        }
+    } catch (e) {
+        console.warn('Ошибка загрузки истории из localStorage:', e);
+    }
+}
+
+function clearHistoryForActiveContact() {
+    if (!state.activeContact) return;
+    const contact = state.activeContact.toLowerCase().trim();
+    if (!state.messages[contact] || state.messages[contact].length === 0) {
+        logToConsole(`История сообщений с ${contact} уже пуста.`, 'info');
+        return;
+    }
+
+    if (confirm(`Вы действительно хотите очистить сохранённую историю сообщений с ${contact}?`)) {
+        state.messages[contact] = [];
+        saveHistoryToStorage();
+        renderChatHistory();
+        logToConsole(`🗑️ Локальная история сообщений с ${contact} очищена.`, 'warning');
+    }
+}
 
 /**
  * Initialize WebSocket connection to local PHP server
@@ -146,8 +323,10 @@ function handleServerEvent(type, data) {
                             state.contacts[emailKey] = { ...c, email: emailKey };
                         }
                     });
-                    renderContacts();
                 }
+                loadHistoryFromStorage();
+                renderContacts();
+                renderChatHistory();
             } else {
                 // Wipe local state completely on new or unauthenticated connection
                 state.myEmail = '';
@@ -156,6 +335,17 @@ function handleServerEvent(type, data) {
                 state.activeContact = null;
                 renderContacts();
                 renderChatHistory();
+
+                // Auto-login if saved credentials exist, remember me is enabled, and user hasn't manually logged out
+                const savedCreds = loadSavedCredentials();
+                if (savedCreds && savedCreds.email && savedCreds.password && !state.manualLogout && isRememberMeEnabled()) {
+                    logToConsole(`Автоматический вход под сохраненным аккаунтом (${savedCreds.email})...`, 'info');
+                    sendWsCommand('login', {
+                        email: savedCreds.email,
+                        password: savedCreds.password,
+                        status: savedCreds.status || 1
+                    });
+                }
             }
             updateAuthUI('Не в сети');
             break;
@@ -177,6 +367,7 @@ function handleServerEvent(type, data) {
             }
             state.mrimState = 'authenticated';
             state.myEmail = newEmail;
+            loadHistoryFromStorage();
             renderContacts();
             renderChatHistory();
             updateAuthUI();
@@ -364,6 +555,7 @@ function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, send
     if (!rawFrom) return;
     const fromEmail = rawFrom.toLowerCase().trim();
     const now = timestamp ? (timestamp > 1e11 ? timestamp : timestamp * 1000) : Date.now();
+    const msgTs = timestamp ? (timestamp > 1e11 ? Math.floor(timestamp / 1000) : timestamp) : Math.floor(Date.now() / 1000);
 
     if (fromEmail.includes('admin@mrim.su')) {
         console.log("TEST MESSAGE FROM ADMIN RECEIVED");
@@ -374,10 +566,23 @@ function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, send
         state.messages[fromEmail] = [];
     }
 
+    // Deduplicate incoming message if identical message already exists in history
+    const isDuplicate = state.messages[fromEmail].some(m => {
+        if (m.isMe) return false;
+        if (m.text !== text) return false;
+        const mTs = m.timestamp > 1e11 ? Math.floor(m.timestamp / 1000) : (m.timestamp || 0);
+        return !msgTs || !mTs || Math.abs(mTs - msgTs) <= 300;
+    });
+
+    if (isDuplicate) {
+        logToConsole(`Пропущено дубликатное сообщение от ${fromEmail}: "${text.substring(0, 30)}..."`, 'debug');
+        return;
+    }
+
     state.messages[fromEmail].push({
         from: fromEmail,
         text: text,
-        timestamp: timestamp || Math.floor(Date.now() / 1000),
+        timestamp: msgTs,
         isMe: false,
         isAuthReq: isAuthReq || false,
         senderNick: senderNick || '',
@@ -409,6 +614,7 @@ function handleIncomingMessage(rawFrom, text, timestamp, isAuthReq = false, send
         state.contacts[fromEmail].unread = (state.contacts[fromEmail].unread || 0) + 1;
     }
     renderContacts();
+    saveHistoryToStorage();
 
     if (!isWakeUp) {
         playIncomingSound();
@@ -602,6 +808,7 @@ function handleOutgoingMessage(rawTo, text, timestamp) {
         renderChatHistory();
     }
     renderContacts();
+    saveHistoryToStorage();
 }
 
 /**
@@ -611,6 +818,7 @@ function updateAuthUI(statusMessage) {
     const isAuth = (state.mrimState === 'authenticated');
     if (el.btnLogin) el.btnLogin.classList.toggle('hidden', isAuth);
     if (el.btnLogout) el.btnLogout.classList.toggle('hidden', !isAuth);
+    if (el.btnReconnect) el.btnReconnect.classList.toggle('hidden', !isAuth);
     if (el.loginEmail) el.loginEmail.disabled = isAuth;
     if (el.loginPass) el.loginPass.disabled = isAuth;
     if (el.loginStatus) el.loginStatus.disabled = isAuth;
@@ -675,6 +883,65 @@ function updateAuthUI(statusMessage) {
 }
 
 /**
+ * Avatar Cache Manager using localStorage and Data URLs for instant loading
+ */
+const avatarCache = (function() {
+    let cache = {};
+    const CACHE_KEY = 'mrim_avatars_v1';
+    const MAX_ENTRIES = 60;
+
+    try {
+        const stored = localStorage.getItem(CACHE_KEY);
+        if (stored) cache = JSON.parse(stored);
+    } catch (e) {
+        cache = {};
+    }
+
+    function save() {
+        try {
+            const keys = Object.keys(cache);
+            if (keys.length > MAX_ENTRIES) {
+                const toDelete = keys.slice(0, keys.length - MAX_ENTRIES);
+                toDelete.forEach(k => delete cache[k]);
+            }
+            localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+        } catch (e) {
+            console.warn('Avatar cache storage limit reached or disabled:', e);
+        }
+    }
+
+    return {
+        get(email) {
+            if (!email) return null;
+            return cache[email.toLowerCase().trim()] || null;
+        },
+        set(email, dataUrl) {
+            if (!email || !dataUrl) return;
+            cache[email.toLowerCase().trim()] = dataUrl;
+            save();
+        },
+        cacheImage(email, imgElement) {
+            if (!email || !imgElement) return;
+            const normEmail = email.toLowerCase().trim();
+            if (cache[normEmail]) return;
+
+            try {
+                if (!imgElement.naturalWidth || !imgElement.naturalHeight) return;
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.min(imgElement.naturalWidth, 128);
+                canvas.height = Math.min(imgElement.naturalHeight, 128);
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                this.set(normEmail, dataUrl);
+            } catch (e) {
+                // Ignore canvas export errors if any
+            }
+        }
+    };
+})();
+
+/**
  * Helper to construct primary avatar URL according to MRIM server rules:
  * http://obraz.mrim.su/{domain}/{username}/_mrimavatar (proxied via /avatar/)
  */
@@ -708,14 +975,6 @@ function applyAvatarWithFallbacks(imgElement, email, defaultSvgElement = null) {
         return;
     }
 
-    const avatarUrl = getAvatarUrl(cleanEmail);
-    if (!avatarUrl) {
-        imgElement.dataset.currentEmail = '';
-        imgElement.classList.add('hidden');
-        if (defaultSvgElement) defaultSvgElement.classList.remove('hidden');
-        return;
-    }
-
     function showImage() {
         imgElement.classList.remove('hidden');
         if (defaultSvgElement) defaultSvgElement.classList.add('hidden');
@@ -733,11 +992,29 @@ function applyAvatarWithFallbacks(imgElement, email, defaultSvgElement = null) {
         return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgStr);
     }
 
+    // Check avatar cache first
+    const cachedDataUrl = avatarCache.get(cleanEmail);
+    if (cachedDataUrl) {
+        imgElement.dataset.currentEmail = cleanEmail;
+        imgElement.src = cachedDataUrl;
+        showImage();
+        return;
+    }
+
+    const avatarUrl = getAvatarUrl(cleanEmail);
+    if (!avatarUrl) {
+        imgElement.dataset.currentEmail = '';
+        imgElement.classList.add('hidden');
+        if (defaultSvgElement) defaultSvgElement.classList.remove('hidden');
+        return;
+    }
+
     // If dataset email matches and src is set, ensure image is unhidden
     if (imgElement.dataset.currentEmail === cleanEmail && imgElement.src) {
         if (imgElement.complete) {
             if (imgElement.naturalWidth > 0) {
                 showImage();
+                avatarCache.cacheImage(cleanEmail, imgElement);
             } else {
                 imgElement.src = getInitialSvgUri(cleanEmail);
                 showImage();
@@ -752,6 +1029,7 @@ function applyAvatarWithFallbacks(imgElement, email, defaultSvgElement = null) {
 
     imgElement.onload = function() {
         showImage();
+        avatarCache.cacheImage(cleanEmail, imgElement);
     };
 
     imgElement.onerror = function() {
@@ -766,6 +1044,7 @@ function applyAvatarWithFallbacks(imgElement, email, defaultSvgElement = null) {
     if (imgElement.complete) {
         if (imgElement.naturalWidth > 0) {
             showImage();
+            avatarCache.cacheImage(cleanEmail, imgElement);
         } else {
             imgElement.src = getInitialSvgUri(cleanEmail);
             showImage();
@@ -1042,15 +1321,20 @@ function logToConsole(message, level = 'info') {
 
 el.loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
+    state.manualLogout = false;
     const email = el.loginEmail.value.trim();
     const password = el.loginPass.value;
     const status = parseInt(el.loginStatus.value, 10) || 1;
+    const remember = isRememberMeEnabled();
+
+    saveSavedCredentials(email, password, status, remember);
 
     updateAuthUI('Подключение к mrim.su...');
     sendWsCommand('login', { email, password, status });
 });
 
 el.btnLogout.addEventListener('click', () => {
+    state.manualLogout = true;
     sendWsCommand('logout');
 });
 
@@ -1059,10 +1343,11 @@ el.btnReconnect.addEventListener('click', () => {
     sendWsCommand('reconnect');
 });
 
-el.btnPing.addEventListener('click', () => {
-    logToConsole('Отправка проверочного пакета MRIM_CS_PING...', 'info');
-    sendWsCommand('ping');
-});
+if (el.btnSettings) {
+    el.btnSettings.addEventListener('click', () => {
+        openSettingsModal();
+    });
+}
 
 if (el.directTo) {
     el.directTo.addEventListener('input', () => {
@@ -1110,6 +1395,12 @@ if (el.btnAuthorizeActive) {
             logToConsole(`Отправка пакета авторизации MRIM_CS_AUTHORIZE для ${state.activeContact}...`, 'info');
             sendWsCommand('authorize_contact', { email: state.activeContact });
         }
+    });
+}
+
+if (el.btnClearHistory) {
+    el.btnClearHistory.addEventListener('click', () => {
+        clearHistoryForActiveContact();
     });
 }
 
@@ -1193,7 +1484,8 @@ function setupMessageInput() {
                 const fileName = map[id] || alt || 'smile.gif';
                 const safeAlt = escapeHtml(alt);
                 const safeFileName = escapeHtml(fileName);
-                html += `<img src="${path}${safeFileName}" data-smile-id="${id}" data-smile-alt="${safeAlt}" class="mrim-smile-input" draggable="false" alt="${safeAlt}">`;
+                const smileSrc = (window.getSmileSrc && window.getSmileSrc(id)) || `${path}${safeFileName}`;
+                html += `<img src="${smileSrc}" data-smile-id="${id}" data-smile-alt="${safeAlt}" class="mrim-smile-input" draggable="false" alt="${safeAlt}">`;
                 lastIndex = smileRegex.lastIndex;
             }
             if (lastIndex < val.length) {
@@ -1233,6 +1525,14 @@ function setupMessageInput() {
                 el.messageInput.innerHTML = '';
             }
         }
+    });
+
+    el.messageInput.addEventListener('focus', () => {
+        setTimeout(() => {
+            if (el.chatHistory) {
+                el.chatHistory.scrollTop = el.chatHistory.scrollHeight;
+            }
+        }, 300);
     });
 }
 
@@ -1275,14 +1575,263 @@ el.btnClearLogs.addEventListener('click', () => {
     el.logsConsole.innerHTML = '';
 });
 
+/**
+ * Theme Manager logic (loads custom theme CSS from /styles/ directory or user uploaded CSS)
+ */
+const THEME_KEY = 'mrim_theme_preference_v1';
+const CUSTOM_THEME_CSS_KEY = 'mrim_custom_theme_css_v1';
+
+function getCurrentTheme() {
+    return localStorage.getItem(THEME_KEY) || 'default';
+}
+
+function applyTheme(themeName) {
+    const validThemes = [
+        'default',
+        'agent6',
+        'agent6_red',
+        'agent6_green',
+        'agent6_cyan',
+        'agent6_blue',
+        'agent6_purple',
+        'agent6_white',
+        'agent6_black',
+        'win95',
+        'matrix',
+        'custom'
+    ];
+    if (!validThemes.includes(themeName)) {
+        themeName = 'default';
+    }
+
+    const themeLink = document.getElementById('theme-stylesheet');
+    let customStyleTag = document.getElementById('custom-theme-style');
+
+    if (themeName === 'custom') {
+        const customCss = localStorage.getItem(CUSTOM_THEME_CSS_KEY) || '';
+        if (!customStyleTag) {
+            customStyleTag = document.createElement('style');
+            customStyleTag.id = 'custom-theme-style';
+            document.head.appendChild(customStyleTag);
+        }
+        customStyleTag.textContent = customCss;
+        if (themeLink) {
+            themeLink.href = 'styles/default.css'; // Keep default as base structural style
+        }
+    } else {
+        if (customStyleTag) {
+            customStyleTag.textContent = '';
+        }
+        if (themeLink) {
+            themeLink.href = `styles/${themeName}.css`;
+        }
+    }
+
+    localStorage.setItem(THEME_KEY, themeName);
+    updateCustomThemeUI(themeName);
+}
+
+function updateCustomThemeUI(currentTheme) {
+    if (!el.customThemeUploadBox) return;
+    if (currentTheme === 'custom') {
+        el.customThemeUploadBox.classList.remove('hidden');
+        if (el.customThemeStatus) {
+            const hasCustomCss = !!localStorage.getItem(CUSTOM_THEME_CSS_KEY);
+            el.customThemeStatus.textContent = hasCustomCss ? 'Пользовательская тема загружена и активна' : 'Выберите .css файл с вашего компьютера';
+        }
+    } else {
+        el.customThemeUploadBox.classList.add('hidden');
+    }
+}
+
+function restoreSavedTheme() {
+    const theme = getCurrentTheme();
+    applyTheme(theme);
+    if (el.settingsThemeSelect) {
+        el.settingsThemeSelect.value = theme;
+    }
+}
+
+function openSettingsModal() {
+    if (!el.settingsModal) return;
+    if (el.settingsRememberMe) {
+        el.settingsRememberMe.checked = isRememberMeEnabled();
+    }
+    const theme = getCurrentTheme();
+    if (el.settingsThemeSelect) {
+        el.settingsThemeSelect.value = theme;
+    }
+    updateCustomThemeUI(theme);
+    updatePWAStatus();
+    el.settingsModal.classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+    if (!el.settingsModal) return;
+    el.settingsModal.classList.add('hidden');
+}
+
+function updatePWAStatus() {
+    const pwaStatusText = document.getElementById('pwa-status-text');
+    if (!pwaStatusText) return;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (isStandalone) {
+        pwaStatusText.innerHTML = 'Приложение запущенно как PWA (автономный режим)';
+    } else {
+        pwaStatusText.innerHTML = 'В зависимости от устройства вы можете установить клиент на экран iPhone или ПК.';
+    }
+}
+
+function saveSettings() {
+    if (el.settingsRememberMe) {
+        const remember = el.settingsRememberMe.checked;
+        localStorage.setItem('mrim_remember_me_pref', remember ? 'true' : 'false');
+
+        if (!remember) {
+            localStorage.removeItem(CREDENTIALS_KEY);
+        } else {
+            const email = el.loginEmail ? el.loginEmail.value.trim() : '';
+            const password = el.loginPass ? el.loginPass.value : '';
+            const status = el.loginStatus ? (parseInt(el.loginStatus.value, 10) || 1) : 1;
+            if (email && password) {
+                saveSavedCredentials(email, password, status, true);
+            }
+        }
+    }
+
+    if (el.settingsThemeSelect) {
+        const selectedTheme = el.settingsThemeSelect.value;
+        applyTheme(selectedTheme);
+        logToConsole(`Тема оформления изменена и сохранена: ${selectedTheme}`, 'info');
+    }
+
+    logToConsole('Настройки успешно сохранены.', 'info');
+    closeSettingsModal();
+}
+
+function initSettingsModal() {
+    if (el.settingsThemeSelect) {
+        el.settingsThemeSelect.addEventListener('change', (e) => {
+            const newTheme = e.target.value;
+            applyTheme(newTheme);
+            logToConsole(`Предпросмотр темы: ${newTheme}`, 'info');
+        });
+    }
+
+    if (el.settingsCustomThemeFile) {
+        el.settingsCustomThemeFile.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const cssContent = event.target.result;
+                localStorage.setItem(CUSTOM_THEME_CSS_KEY, cssContent);
+                if (el.customThemeStatus) {
+                    el.customThemeStatus.textContent = `Файл "${file.name}" успешно загружен!`;
+                }
+                applyTheme('custom');
+                if (el.settingsThemeSelect) {
+                    el.settingsThemeSelect.value = 'custom';
+                }
+                logToConsole(`Загружена пользовательская тема из файла: ${file.name}`, 'info');
+            };
+            reader.readAsText(file);
+        });
+    }
+
+    if (el.btnSettings) {
+        el.btnSettings.addEventListener('click', () => {
+            openSettingsModal();
+        });
+    }
+
+    if (el.btnSaveSettings) {
+        el.btnSaveSettings.addEventListener('click', () => {
+            saveSettings();
+        });
+    }
+
+    if (el.btnCloseSettings) {
+        el.btnCloseSettings.addEventListener('click', () => {
+            closeSettingsModal();
+        });
+    }
+
+    if (el.btnCloseSettingsX) {
+        el.btnCloseSettingsX.addEventListener('click', () => {
+            closeSettingsModal();
+        });
+    }
+
+    if (el.settingsModal) {
+        el.settingsModal.addEventListener('click', (e) => {
+            if (e.target === el.settingsModal) {
+                closeSettingsModal();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && el.settingsModal && !el.settingsModal.classList.contains('hidden')) {
+            closeSettingsModal();
+        }
+    });
+}
+
 // Start WebSocket connection when DOM is ready
 window.addEventListener('DOMContentLoaded', () => {
+    restoreSavedTheme();
+    restoreSavedCredentials();
     connectWebSocket();
     initLoginPanelToggle();
     initLogsPanelToggle();
     initMobileNavigation();
     initSmilePicker();
+    initSettingsModal();
+    initPWAManager();
 });
+
+// ==========================================
+// PWA (Progressive Web App) Manager
+// ==========================================
+let deferredPwaPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPwaPrompt = e;
+    const nativeBox = document.getElementById('pwa-native-install-box');
+    if (nativeBox) {
+        nativeBox.classList.remove('hidden');
+    }
+});
+
+function initPWAManager() {
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').then((reg) => {
+            console.log('[PWA] Service Worker успешно зарегистрирован:', reg.scope);
+        }).catch((err) => {
+            console.warn('[PWA] Ошибка регистрации Service Worker:', err);
+        });
+    }
+
+    const btnTriggerInstall = document.getElementById('btn-pwa-trigger-install');
+
+    if (btnTriggerInstall) {
+        btnTriggerInstall.addEventListener('click', async () => {
+            if (deferredPwaPrompt) {
+                deferredPwaPrompt.prompt();
+                const { outcome } = await deferredPwaPrompt.userChoice;
+                console.log(`[PWA] Результат установки: ${outcome}`);
+                deferredPwaPrompt = null;
+                const nativeBox = document.getElementById('pwa-native-install-box');
+                if (nativeBox) nativeBox.classList.add('hidden');
+                closeSettingsModal();
+            }
+        });
+    }
+}
 
 // ==========================================
 // Smile Picker Controls
@@ -1290,14 +1839,68 @@ window.addEventListener('DOMContentLoaded', () => {
 function initSmilePicker() {
     const btnSmiles = document.getElementById('btn-smiles');
     const popup = document.getElementById('smile-picker-popup');
-    const grid = document.getElementById('smile-picker-grid');
+    const smileGrid = document.getElementById('smile-picker-grid');
+    const kaomojiGrid = document.getElementById('kaomoji-picker-grid');
     const btnClose = document.getElementById('btn-close-smiles');
+    const tabSmiles = document.getElementById('tab-btn-smiles');
+    const tabKaomoji = document.getElementById('tab-btn-kaomoji');
     const input = el.messageInput;
 
-    if (!btnSmiles || !popup || !grid) return;
+    if (!btnSmiles || !popup || !smileGrid || !kaomojiGrid) return;
+
+    let activeTab = 'smiles';
+
+    const kaomojiList = [
+        "(⁠◕⁠ᴗ⁠◕⁠✿⁠)", "(⁠*⁠^⁠-⁠^⁠*⁠)", "⊂(￣▽￣)⊃", "(⁠≧⁠◡⁠≦⁠)", "＼(￣▽￣)／", "ヽ(♡‿♡)ノ",
+        "(⁠｡⁠♥⁠‿⁠♥⁠｡⁠)", "(⁠◠⁠‿⁠◕⁠)", "ԅ(¯ㅂ¯ԅ)", "(⁠/⁠¯⁠◡⁠o⁠)⁠/⁠*⁠:⁠･ﾟ", "(⁠~⁠￣⁠³⁠￣⁠)⁠~", "(b_d)",
+        "(⁠Φ⁠ω⁠Φ⁠)", "(⁠=⁠^⁠･⁠ω⁠･⁠^⁠=⁠)", "(⁠^⁠=⁠◕⁠ᴥ⁠◕⁠=⁠^⁠)", "ʕ⁠·⁠ᴥ⁠·⁠ʔ", "(⁠`⁠･⁠ω⁠･⁠´⁠)", "(⁠;⁠Φ⁠ω⁠Φ⁠)",
+        "¯\\_(ツ)_/¯", "(⁠ಠ⁠_⁠ಠ⁠)", "(¬_¬)", "(⁠•⁠a⁠•⁠)", "ヽ(°□°)ﾉ", "└(°o°)┘",
+        "(⁠⊙⁠_⁠⊙⁠)", "(⁠~⁠_⁠~⁠;⁠)", "(⁠╯⁠°⁠□⁠°⁠)⁠╯⁠︵⁠ ⁠┻⁠━⁠┻", "┬─┬ノ( º _ ºノ)", "(⁠ง⁠•⁠_⁠•⁠)⁠ง", "(⁠ノ⁠_⁠<⁠)",
+        "(⁠;⁠_⁠;⁠)", "(⁠╥⁠﹏⁠╥⁠)", "(⁠ﾉ⁠◕⁠ヮ⁠◕⁠)⁠ﾉ⁠*⁠:⁠･ﾟ⁠✧", "(⁠-⁠_⁠-⁠)", "(⁠★⁠ω⁠★⁠)", "└(™_™)┐"
+    ];
+
+    function switchTab(tab) {
+        activeTab = tab;
+        const titleEl = popup.querySelector('.smile-picker-title');
+        if (tab === 'kaomoji') {
+            if (tabSmiles) tabSmiles.classList.remove('active');
+            if (tabKaomoji) tabKaomoji.classList.add('active');
+            if (titleEl) titleEl.textContent = 'Каомодзи';
+            smileGrid.classList.add('hidden');
+            kaomojiGrid.classList.remove('hidden');
+            if (kaomojiGrid.children.length === 0) {
+                renderKaomojiGrid();
+            }
+        } else {
+            if (tabKaomoji) tabKaomoji.classList.remove('active');
+            if (tabSmiles) tabSmiles.classList.add('active');
+            if (titleEl) titleEl.textContent = 'Смайлики';
+            kaomojiGrid.classList.add('hidden');
+            smileGrid.classList.remove('hidden');
+            if (smileGrid.children.length === 0) {
+                renderSmileGrid();
+            }
+        }
+    }
+
+    if (tabSmiles) {
+        tabSmiles.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            switchTab('smiles');
+        });
+    }
+
+    if (tabKaomoji) {
+        tabKaomoji.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            switchTab('kaomoji');
+        });
+    }
 
     function renderSmileGrid() {
-        grid.innerHTML = '';
+        smileGrid.innerHTML = '';
         const map = window.smileMap || {};
         const path = window.SMILE_PATH || '/res/';
 
@@ -1310,7 +1913,7 @@ function initSmilePicker() {
             item.setAttribute('data-id', id);
 
             const img = document.createElement('img');
-            img.src = `${path}${fileName}`;
+            img.src = (window.getSmileSrc && window.getSmileSrc(id)) || `${path}${fileName}`;
             img.alt = fileName;
             img.loading = 'lazy';
 
@@ -1323,8 +1926,56 @@ function initSmilePicker() {
                 closeSmilePicker();
             });
 
-            grid.appendChild(item);
+            smileGrid.appendChild(item);
         });
+    }
+
+    function renderKaomojiGrid() {
+        kaomojiGrid.innerHTML = '';
+        kaomojiList.forEach(km => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'kaomoji-picker-item';
+            item.title = km;
+            item.textContent = km;
+
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                insertKaomoji(km);
+                closeSmilePicker();
+            });
+
+            kaomojiGrid.appendChild(item);
+        });
+    }
+
+    function insertKaomoji(km) {
+        if (!input || input.disabled || input.getAttribute('contenteditable') === 'false') return;
+        input.focus();
+
+        const sel = window.getSelection();
+        let range;
+
+        if (sel && sel.rangeCount > 0 && input.contains(sel.anchorNode)) {
+            range = sel.getRangeAt(0);
+        } else {
+            range = document.createRange();
+            range.selectNodeContents(input);
+            range.collapse(false);
+        }
+
+        const textNode = document.createTextNode(km + ' ');
+        range.deleteContents();
+        range.insertNode(textNode);
+
+        // Position selection right after the inserted text
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        input.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
     function insertSmile(id) {
@@ -1347,7 +1998,7 @@ function initSmilePicker() {
         }
 
         const img = document.createElement('img');
-        img.src = `${path}${fileName}`;
+        img.src = (window.getSmileSrc && window.getSmileSrc(id)) || `${path}${fileName}`;
         img.className = 'mrim-smile-input';
         img.alt = fileName;
         img.dataset.smileId = id;
@@ -1368,8 +2019,10 @@ function initSmilePicker() {
 
     function openSmilePicker() {
         if (input && input.disabled) return;
-        if (grid.children.length === 0) {
+        if (activeTab === 'smiles' && smileGrid.children.length === 0) {
             renderSmileGrid();
+        } else if (activeTab === 'kaomoji' && kaomojiGrid.children.length === 0) {
+            renderKaomojiGrid();
         }
         popup.classList.remove('hidden');
     }
@@ -1537,6 +2190,11 @@ function switchMobileTab(tab) {
         workspace.classList.remove('mobile-view-contacts');
         if (btnContacts) btnContacts.classList.remove('active');
         if (btnChat) btnChat.classList.add('active');
+        if (el.chatHistory) {
+            setTimeout(() => {
+                el.chatHistory.scrollTop = el.chatHistory.scrollHeight;
+            }, 50);
+        }
     } else {
         workspace.classList.add('mobile-view-contacts');
         workspace.classList.remove('mobile-view-chat');

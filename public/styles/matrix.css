@@ -1,0 +1,501 @@
+/*
+ * Theme: Matrix (Неоновый зеленый код)
+ * Phosphor green terminal on deep black matrix style
+ */
+
+body {
+    background-color: #020802;
+    color: #00ff41;
+    font-family: "Courier New", Courier, monospace, Tahoma, sans-serif;
+}
+
+.agent-window {
+    background-color: #051205;
+    border: 1px solid #00ff41;
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+}
+
+.title-bar {
+    background-color: #002200;
+    color: #00ff41;
+    border-bottom: 1px solid #00ff41;
+    text-shadow: 0 0 4px #00ff41;
+}
+
+.ws-status-square {
+    border-color: #00ff41;
+    background-color: #00ff41;
+    box-shadow: 0 0 6px #00ff41;
+}
+
+.panel-header,
+.contacts-panel .panel-header,
+.chat-panel .panel-header.chat-header-row,
+.logs-panel .panel-header {
+    background-color: #081a08;
+    border-bottom: 1px solid #005500;
+    color: #00ff41;
+}
+
+.login-panel {
+    background-color: #061506;
+    border-bottom: 1px solid #005500;
+}
+
+.login-header-info {
+    color: #00ff41;
+}
+
+.user-avatar-badge,
+.chat-avatar {
+    background-color: #0a220a;
+    border-color: #00ff41;
+}
+
+.user-email-preview {
+    color: #00cc33;
+}
+
+.user-email-preview.authenticated {
+    color: #00ff41;
+    text-shadow: 0 0 4px #00ff41;
+}
+
+.form-grid {
+    background-color: #020802;
+    border-color: #00ff41;
+}
+
+.form-field label {
+    color: #00ff41;
+}
+
+.form-field input[type="text"],
+.form-field input[type="password"],
+.form-field select {
+    background-color: #081a08;
+    border-color: #00ff41;
+    color: #00ff41;
+    font-family: monospace;
+}
+
+.form-field input[type="text"]:focus,
+.form-field input[type="password"]:focus,
+.form-field select:focus {
+    border-color: #00ff41;
+    box-shadow: 0 0 6px #00ff41;
+}
+
+.auth-status-bar {
+    background-color: #020802;
+    border-color: #00ff41;
+    color: #00ff41;
+}
+
+.workspace {
+    background-color: #051205;
+}
+
+.contacts-panel {
+    background-color: #051205;
+    border-right-color: #00ff41;
+}
+
+.contacts-list {
+    background-color: #020802;
+}
+
+.contact-item {
+    border-bottom-color: #0a220a;
+}
+
+.contact-item:hover {
+    background-color: #0c2b0c;
+}
+
+.contact-item.active {
+    background-color: #103a10;
+    border-left: 3px solid #00ff41;
+}
+
+.contact-name {
+    color: #00ff41;
+}
+
+.unread-badge {
+    background-color: #00ff41;
+    color: #000000;
+    font-weight: bold;
+}
+
+.empty-list {
+    color: #009926;
+}
+
+.direct-msg-box {
+    background-color: #081a08;
+    border-top-color: #00ff41;
+}
+
+.direct-msg-box label {
+    color: #00ff41;
+}
+
+.direct-input-row input {
+    background-color: #020802;
+    border-color: #005500;
+    color: #00ff41;
+    font-family: monospace;
+}
+
+.direct-input-row input:focus {
+    border-color: #00ff41;
+}
+
+.btn {
+    background-color: #0a220a;
+    border-color: #00ff41;
+    color: #00ff41;
+    font-family: monospace;
+}
+
+.btn:hover {
+    background-color: #123d12;
+    color: #ffffff;
+    box-shadow: 0 0 5px #00ff41;
+}
+
+.btn:disabled {
+    background-color: #040d04;
+    color: #005500;
+    border-color: #003300;
+}
+
+.btn-login,
+.btn-send,
+.btn-chat {
+    background-color: #00ff41;
+    border-color: #00ff41;
+    color: #000000;
+    font-weight: bold;
+}
+
+.btn-login:hover,
+.btn-send:hover,
+.btn-chat:hover {
+    background-color: #00cc33;
+}
+
+.chat-panel {
+    background-color: #020802;
+}
+
+.chat-history {
+    background-color: #020602;
+}
+
+.chat-welcome {
+    background-color: #081a08;
+    border-color: #00ff41;
+    color: #00ff41;
+}
+
+.message-item {
+    background-color: #081a08;
+    border-color: #00aa2c;
+    color: #00ff41;
+}
+
+.message-item:has(.msg-author.me),
+.message-item.msg-outgoing {
+    background-color: #0d2b0d;
+    border-color: #00ff41;
+}
+
+.msg-header {
+    color: #00cc33;
+}
+
+.msg-author {
+    color: #00ff41;
+}
+
+.msg-author.me {
+    color: #66ff8c;
+}
+
+.msg-text {
+    color: #00ff41;
+    font-family: monospace;
+}
+
+.send-box {
+    background-color: #081a08;
+    border-top-color: #00ff41;
+}
+
+.send-box textarea,
+.send-box .message-input {
+    background-color: #020802;
+    border-color: #005500;
+    color: #00ff41;
+    font-family: monospace;
+}
+
+.send-box textarea:focus,
+.send-box .message-input:focus {
+    border-color: #00ff41;
+    background-color: #051205;
+}
+
+.btn-toolbar-stub {
+    background-color: #0a220a;
+    border-color: #005500;
+    color: #00ff41;
+}
+
+.btn-toolbar-stub:hover {
+    background-color: #123d12;
+    border-color: #00ff41;
+}
+
+.logs-panel {
+    background-color: #051205;
+    border-top-color: #00ff41;
+}
+
+.logs-console {
+    background-color: #000000;
+    color: #00ff41;
+}
+
+.modal-overlay {
+    background-color: rgba(0, 0, 0, 0.85);
+}
+
+.modal-window {
+    background-color: #081a08;
+    border-color: #00ff41;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+}
+
+.modal-header {
+    background-color: #002200;
+    border-bottom-color: #00ff41;
+    color: #00ff41;
+}
+
+.modal-close-btn {
+    background-color: #0a220a;
+    border-color: #00ff41;
+    color: #00ff41;
+}
+
+.modal-body {
+    background-color: #020802;
+}
+
+.settings-section {
+    background-color: #081a08;
+    border-color: #005500;
+}
+
+.settings-section-title {
+    color: #00ff41;
+}
+
+.settings-checkbox-label {
+    color: #00ff41;
+}
+
+.settings-help-text {
+    color: #00cc33;
+}
+
+.settings-divider {
+    border-top-color: #00ff41;
+}
+
+.modal-footer {
+    background-color: #051205;
+    border-top-color: #00ff41;
+}
+
+.mobile-workspace-tabs {
+    background-color: #081a08;
+    border-top-color: #00ff41;
+}
+
+.mobile-tab-btn {
+    color: #00cc33;
+}
+
+.mobile-tab-btn.active {
+    color: #00ff41;
+    border-top-color: #00ff41;
+    background-color: #020802;
+}
+
+.smile-picker-popup {
+    background-color: #081a08;
+    border-color: #00ff41;
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+}
+
+.smile-picker-header,
+.smile-picker-footer {
+    background-color: #002200;
+    border-color: #005500;
+    color: #00ff41;
+}
+
+.smile-picker-tab.active {
+    color: #00ff41;
+    border-top-color: #00ff41;
+    background-color: #081a08;
+}
+
+.smile-picker-grid,
+.kaomoji-picker-grid {
+    background-color: #020802;
+}
+
+.smile-picker-item,
+.kaomoji-picker-item {
+    background-color: #081a08;
+    border-color: #005500;
+    color: #00ff41;
+}
+
+.smile-picker-item:hover,
+.kaomoji-picker-item:hover {
+    background-color: #123d12;
+    border-color: #00ff41;
+    color: #ffffff;
+}
+
+/* Modals & Settings Window - Matrix Theme */
+.modal-overlay {
+    background-color: rgba(0, 10, 0, 0.7);
+}
+
+.modal-window {
+    background-color: #020802;
+    border: 1px solid #00ff41;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+    border-radius: 0 !important;
+}
+
+.modal-header {
+    background-color: #081a08;
+    color: #00ff41;
+    border-bottom: 1px solid #005500;
+}
+
+.modal-close-btn {
+    background-color: #002200;
+    color: #00ff41;
+    border: 1px solid #005500;
+}
+
+.modal-close-btn:hover {
+    background-color: #00ff41;
+    color: #000000;
+}
+
+.modal-body {
+    background-color: #020802;
+    color: #00cc33;
+}
+
+.settings-section {
+    background-color: #051205;
+    border: 1px solid #005500;
+    border-radius: 0 !important;
+}
+
+.settings-section-title {
+    color: #00ff41;
+    border-bottom-color: #005500;
+}
+
+.settings-help-text {
+    color: #009926;
+}
+
+.form-field label {
+    color: #00ff41;
+}
+
+.form-field select,
+.form-field input[type="text"] {
+    background-color: #020802;
+    border: 1px solid #005500;
+    color: #00ff41;
+}
+
+.form-field select:focus,
+.form-field input[type="text"]:focus {
+    border-color: #00ff41;
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+}
+
+.pwa-guide-section {
+    background-color: #081a08;
+    border: 1px solid #005500;
+    border-radius: 0 !important;
+    color: #00cc33;
+}
+
+.pwa-platform-header {
+    color: #00ff41;
+}
+
+.pwa-steps {
+    color: #00cc33;
+}
+
+.pwa-status-box {
+    background-color: #081a08;
+    border: 1px solid #005500;
+    border-left: 3px solid #00ff41;
+    color: #00ff41;
+}
+
+.modal-footer {
+    background-color: #081a08;
+    border-top: 1px solid #005500;
+}
+
+/* Mobile Overrides for Matrix Theme */
+@media (max-width: 768px) {
+    .contact-item.active {
+        background-color: transparent !important;
+        border-left: none !important;
+        border-top: none !important;
+        font-weight: normal !important;
+    }
+
+    .contact-item.active .contact-name {
+        color: #00ff41 !important;
+        text-shadow: none !important;
+    }
+
+    ::-webkit-scrollbar,
+    *::-webkit-scrollbar,
+    *::-webkit-scrollbar-track,
+    *::-webkit-scrollbar-thumb,
+    *::-webkit-scrollbar-button,
+    *::-webkit-scrollbar-corner {
+        width: 0 !important;
+        height: 0 !important;
+        display: none !important;
+        background: transparent !important;
+        border: none !important;
+    }
+
+    * {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+}

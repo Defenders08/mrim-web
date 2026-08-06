@@ -45,6 +45,73 @@
     window.smileMap = smileMap;
     window.SMILE_PATH = SMILE_PATH;
 
+    // Smile Cache Manager using localStorage and Data URLs
+    const SMILE_CACHE_KEY = 'mrim_smiles_cache_v1';
+    let smileCache = {};
+
+    try {
+        const stored = localStorage.getItem(SMILE_CACHE_KEY);
+        if (stored) smileCache = JSON.parse(stored);
+    } catch (e) {
+        smileCache = {};
+    }
+
+    function saveSmileCache() {
+        try {
+            localStorage.setItem(SMILE_CACHE_KEY, JSON.stringify(smileCache));
+        } catch (e) {
+            console.warn('Smiles cache storage limit reached:', e);
+        }
+    }
+
+    async function cacheSmile(id, file) {
+        if (!id || !file || smileCache[id]) return;
+        try {
+            const resp = await fetch(`${SMILE_PATH}${file}`);
+            if (!resp.ok) return;
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if (reader.result) {
+                    smileCache[id] = reader.result;
+                    saveSmileCache();
+                }
+            };
+            reader.readAsDataURL(blob);
+        } catch (e) {
+            // Ignore fetch error
+        }
+    }
+
+    function preloadAllSmiles() {
+        Object.keys(smileMap).forEach(id => {
+            if (!smileCache[id]) {
+                cacheSmile(id, smileMap[id]);
+            }
+        });
+    }
+
+    window.getSmileSrc = function(id) {
+        if (smileCache[id]) {
+            return smileCache[id];
+        }
+        const file = smileMap[id];
+        if (file) {
+            cacheSmile(id, file);
+            return `${SMILE_PATH}${file}`;
+        }
+        return '';
+    };
+
+    window.preloadAllSmiles = preloadAllSmiles;
+
+    // Trigger preloading immediately
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        preloadAllSmiles();
+    } else {
+        window.addEventListener('DOMContentLoaded', preloadAllSmiles);
+    }
+
     const smileRegex = /<SMILE>\s*id=(\d+)\s+alt='([^']*)'\s*<\/SMILE>/gi;
 
 
@@ -83,7 +150,7 @@
                 if (file) {
                     const img = document.createElement('img');
                     img.className = 'mrim-smile';
-                    img.src = `${SMILE_PATH}${file}`;
+                    img.src = window.getSmileSrc(id);
                     img.alt = alt;
                     img.title = alt;
                     img.draggable = false;

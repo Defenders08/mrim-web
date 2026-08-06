@@ -1,0 +1,37 @@
+{
+  "name": "Mail.Ru Агент — MRIM Web Client",
+  "short_name": "MRIM Agent",
+  "description": "Веб-клиент Mail.Ru Агент (протокол MRIM) для обмена сообщениями и работы с контактами.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ece9d8",
+  "theme_color": "#0055a5",
+  "lang": "ru",
+  "dir": "ltr",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "res/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "res/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "res/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "res/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

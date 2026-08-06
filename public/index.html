@@ -2,8 +2,24 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
     <title>Mail.Ru Агент (MRIM Web Client)</title>
+    
+    <!-- PWA & Web Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0055a5">
+    <link rel="icon" type="image/svg+xml" href="res/icon.svg">
+    <link rel="alternate icon" type="image/png" href="res/icon-192.png">
+
+    <!-- Apple iOS Safari PWA Capabilities -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="MRIM Agent">
+    <link rel="apple-touch-icon" href="res/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="res/apple-touch-icon.png">
+
     <link rel="stylesheet" href="style.css">
+    <link id="theme-stylesheet" rel="stylesheet" href="styles/default.css">
 </head>
 <body>
 
@@ -51,8 +67,8 @@
                             <div class="panel-buttons-group">
                                 <button type="submit" class="btn btn-login" id="btn-login">Войти</button>
                                 <button type="button" class="btn btn-logout hidden" id="btn-logout">Выйти</button>
-                                <button type="button" class="btn btn-reconnect" id="btn-reconnect" title="Переподключиться к серверу">Reconnect</button>
-                                <button type="button" class="btn btn-ping" id="btn-ping" title="Отправить Ping на сервер">Ping</button>
+                                <button type="button" class="btn btn-reconnect hidden" id="btn-reconnect" title="Переподключиться к серверу">Reconnect</button>
+                                <button type="button" class="btn btn-settings" id="btn-settings" title="Открыть настройки и инструкцию PWA">Настройки</button>
                             </div>
                         </div>
                     </div>
@@ -129,10 +145,17 @@
                 <!-- Smile Picker Popup -->
                 <div id="smile-picker-popup" class="smile-picker-popup hidden">
                     <div class="smile-picker-header">
-                        <span>Смайлики</span>
+                        <span class="smile-picker-title">Смайлики</span>
                         <button type="button" class="smile-picker-close" id="btn-close-smiles" title="Закрыть">&times;</button>
                     </div>
                     <div class="smile-picker-grid" id="smile-picker-grid"></div>
+                    <div class="kaomoji-picker-grid hidden" id="kaomoji-picker-grid"></div>
+                    <div class="smile-picker-footer">
+                        <div class="smile-picker-tabs">
+                            <button type="button" class="smile-picker-tab active" id="tab-btn-smiles" data-tab="smiles">Смайлики</button>
+                            <button type="button" class="smile-picker-tab" id="tab-btn-kaomoji" data-tab="kaomoji">Каомодзи</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="send-input-row">
                     <div id="message-input" class="message-input" contenteditable="false" placeholder="Напишите сообщение..."></div>
@@ -150,8 +173,8 @@
         </div>
     </div>
 
-    <!-- Bottom Section: Logs (Collapsible) -->
-    <div class="panel logs-panel collapsed" id="logs-panel">
+    <!-- Bottom Section: Logs (Hidden) -->
+    <div class="panel logs-panel collapsed" id="logs-panel" style="display: none !important;">
         <div class="panel-header" id="logs-header">
             <div class="logs-header-title">
                 <b>Лог системных сообщений и ошибок</b>
@@ -168,6 +191,114 @@
         </div>
     </div>
 </div>
+
+<!-- Settings Modal Window -->
+<div id="settings-modal" class="modal-overlay hidden">
+    <div class="modal-window pwa-modal-window">
+        <div class="modal-header">
+            <span class="modal-title">Настройки и установка PWA</span>
+            <button type="button" class="modal-close-btn" id="btn-close-settings-x" title="Закрыть">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Theme Selection Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">Тема оформления</div>
+                <div class="form-field">
+                    <label for="settings-theme-select">Выберите тему:</label>
+                    <select id="settings-theme-select">
+                        <option value="default">Mail.Ru Агент (Классическая синяя)</option>
+                        <option value="agent6" selected>Агент Mail.Ru 6.0 (Зелено-желтый глянец)</option>
+                        <option value="agent6_red">Агент Mail.Ru 6.0 (Красный глянец)</option>
+                        <option value="agent6_green">Агент Mail.Ru 6.0 (Зелёный глянец)</option>
+                        <option value="agent6_cyan">Агент Mail.Ru 6.0 (Голубой глянец)</option>
+                        <option value="agent6_blue">Агент Mail.Ru 6.0 (Синий глянец)</option>
+                        <option value="agent6_purple">Агент Mail.Ru 6.0 (Фиолетовый глянец)</option>
+                        <option value="agent6_white">Агент Mail.Ru 6.0 (Бело-серебристый глянец)</option>
+                        <option value="agent6_black">Агент Mail.Ru 6.0 (Чёрный глянец)</option>
+                        <option value="win95">Windows 95 (Ретро)</option>
+                        <option value="matrix">Matrix (Неоновый зеленый код)</option>
+                        <option value="custom">Пользовательская (Свой CSS файл)</option>
+                    </select>
+                </div>
+                <div id="custom-theme-upload-box" class="form-field hidden" style="margin-top: 10px;">
+                    <label for="settings-custom-theme-file">Загрузить свой CSS файл темы:</label>
+                    <input type="file" id="settings-custom-theme-file" accept=".css">
+                    <div id="custom-theme-status" class="settings-help-text" style="margin-top: 5px; color: #15803d;"></div>
+                </div>
+                <div class="settings-help-text">Выбранный стиль загружается из папки /styles/ или из загруженного CSS файла и сохраняется в браузере.</div>
+            </div>
+
+            <hr class="settings-divider">
+
+            <!-- Account Settings Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">Вход и авто-сохранение</div>
+                <label class="settings-checkbox-label" for="settings-remember-me">
+                    <input type="checkbox" id="settings-remember-me">
+                    <span>Запомнить меня</span>
+                </label>
+                <div class="settings-help-text">Сохранять логин и пароль для авто-входа при последующих визитах</div>
+            </div>
+
+            <hr class="settings-divider">
+
+            <!-- PWA Installation Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">Установка как веб-приложение (PWA)</div>
+
+                <!-- Native Chrome/Android Install Button (if beforeinstallprompt fired) -->
+                <div id="pwa-native-install-box" class="pwa-native-box hidden">
+                    <p>Ваш браузер поддерживает прямую установку приложения:</p>
+                    <button type="button" class="btn btn-login btn-pwa-primary" id="btn-pwa-trigger-install">
+                        Установить Mail.Ru Агент
+                    </button>
+                    <hr class="pwa-divider">
+                </div>
+
+                <!-- iOS Safari Instructions -->
+                <div class="pwa-guide-section">
+                    <div class="pwa-platform-header">
+                        <b>Как добавить на iPhone / iPad (через кнопку «Поделиться» в Safari):</b>
+                    </div>
+                    <ol class="pwa-steps">
+                        <li>
+                            Откройте эту страницу в браузере <b>Safari</b>.
+                        </li>
+                        <li>
+                            Нажмите кнопку <b>«Поделиться»</b> (квадрат со стрелкой вверх на панели браузера).
+                        </li>
+                        <li>
+                            В появившемся меню прокрутите вниз и выберите <b>«На экран "Домой"»</b>.
+                        </li>
+                        <li>
+                            Подтвердите имя <b>«MRIM Agent»</b> и нажмите <b>«Добавить»</b> в правом верхнем углу.
+                        </li>
+                    </ol>
+                </div>
+
+                <!-- Android Instructions -->
+                <div class="pwa-guide-section">
+                    <div class="pwa-platform-header">
+                        <b>Как добавить на Android (Chrome / Yandex):</b>
+                    </div>
+                    <ol class="pwa-steps">
+                        <li>Нажмите меню браузера <b>«⋮»</b> (три точки в углу).</li>
+                        <li>Выберите пункт <b>«Добавить на гл. экран»</b> или <b>«Установить приложение»</b>.</li>
+                    </ol>
+                </div>
+                
+                <div class="pwa-status-box" id="pwa-status-box">
+                    <span id="pwa-status-text">Проверка поддержки PWA...</span>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-login" id="btn-save-settings">Сохранить настройки</button>
+            <button type="button" class="btn" id="btn-close-settings">Закрыть</button>
+        </div>
+    </div>
+</div>
+
 <script src="smiles.js"></script>
 <script src="app.js"></script>
 </body>

@@ -315,17 +315,20 @@ class MRIMWebServer
         if ($filePath && strpos($filePath, $realPublicDir) === 0 && is_file($filePath)) {
             $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
             $mimeTypes = [
-                'html' => 'text/html; charset=utf-8',
-                'css'  => 'text/css; charset=utf-8',
-                'js'   => 'application/javascript; charset=utf-8',
-                'ico'  => 'image/x-icon',
-                'png'  => 'image/png',
-                'gif'  => 'image/gif',
-                'jpg'  => 'image/jpeg',
-                'jpeg' => 'image/jpeg',
-                'wav'  => 'audio/wav',
-                'mp3'  => 'audio/mpeg',
-                'ogg'  => 'audio/ogg',
+                'html'        => 'text/html; charset=utf-8',
+                'css'         => 'text/css; charset=utf-8',
+                'js'          => 'application/javascript; charset=utf-8',
+                'json'        => 'application/json; charset=utf-8',
+                'webmanifest' => 'application/manifest+json; charset=utf-8',
+                'svg'         => 'image/svg+xml; charset=utf-8',
+                'ico'         => 'image/x-icon',
+                'png'         => 'image/png',
+                'gif'         => 'image/gif',
+                'jpg'         => 'image/jpeg',
+                'jpeg'        => 'image/jpeg',
+                'wav'         => 'audio/wav',
+                'mp3'         => 'audio/mpeg',
+                'ogg'         => 'audio/ogg',
             ];
             $contentType = $mimeTypes[$ext] ?? 'application/octet-stream';
             $content = file_get_contents($filePath);
