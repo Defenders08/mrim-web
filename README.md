@@ -1,6 +1,6 @@
 # MRIM WebSocket Gateway
 
-<img width="869" height="600" alt="screen" src="https://github.com/user-attachments/assets/5846b910-cc84-4de1-8db3-8ca18c148e18" />
+<img width="938" height="648" alt="Снимок экрана — 2026-08-05 в 19 15 59" src="https://github.com/user-attachments/assets/c08ddc28-78c4-4543-a30f-1bdfc05d6a89" />
 
 
 
@@ -22,6 +22,7 @@ Open-source проект для работы с протоколом **MRIM (Mai
 * Работа с контакт-листом
 * Поддержка MRIM packet protocol
 * Кодирование и декодирование строк UTF-16LE (LPS формат)
+* Будильник
 
 ## Архитектура
 
